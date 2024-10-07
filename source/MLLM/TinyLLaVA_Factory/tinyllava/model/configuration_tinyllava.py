@@ -4,7 +4,9 @@ from transformers import AutoConfig
 from tinyllava.utils.constants import *
 
 class TinyLlavaConfig(PretrainedConfig):
-
+    """
+    TinyLlavaConfig 类继承自 PretrainedConfig，用于配置 TinyLlava 模型的参数。
+    """
     model_type = "tinyllava"
     def __init__(
         self,
@@ -41,6 +43,17 @@ class TinyLlavaConfig(PretrainedConfig):
         **kwargs
 
     ):
+        """
+        初始化 TinyLlavaConfig 类的实例。
+
+        参数:
+        - llm_model_name_or_path: 预训练的语言模型名称或路径。
+        - tokenizer_name_or_path: 分词器的名称或路径，默认与语言模型相同。
+        - vision_model_name_or_path: 预训练的视觉模型名称或路径。
+        - vision_model_name_or_path2: 第二个预训练的视觉模型名称或路径。
+        - ... (其他参数)
+        """
+        # 初始化实例变量
         self.llm_model_name_or_path = llm_model_name_or_path
         self.tokenizer_name_or_path = tokenizer_name_or_path or self.llm_model_name_or_path
         self.vision_model_name_or_path = vision_model_name_or_path
@@ -66,12 +79,15 @@ class TinyLlavaConfig(PretrainedConfig):
         self.use_cache = use_cache
         self.cache_dir = cache_dir
         self.tokenizer_use_fast = tokenizer_use_fast
+        # 加载文本和视觉配置
         self._load_text_config(text_config)
         self._load_vision_config(vision_config)
-            
+
+        # 调用父类的初始化方法
         super().__init__(**kwargs)
     
     def load_from_config(self, config):
+        # 从配置对象中加载参数
         self.llm_model_name_or_path = getattr(config, 'model_name_or_path',  '')
         self.tokenizer_name_or_path = getattr(config, 'tokenizer_name_or_path', None) or self.llm_model_name_or_path
         self.vision_model_name_or_path = getattr(config, 'vision_tower',  '')
@@ -88,12 +104,18 @@ class TinyLlavaConfig(PretrainedConfig):
         self.tokenizer_use_fast = getattr(config, 'tokenizer_use_fast', False)
         self.tokenizer_model_max_length = getattr(config, 'model_max_length', 2048)
         self.tokenizer_padding_side = getattr(config, 'tokenizer_padding_side', 'right')
-        
+        # 加载文本和视觉配置
         self._load_text_config()
         self._load_vision_config()
       
     
     def _load_text_config(self, text_config=None):
+        """
+        加载视觉配置。
+
+        参数:
+        - vision_config: 可选的视觉配置字典。
+        """
         if self.llm_model_name_or_path is None or self.llm_model_name_or_path == '':
             self.text_config = CONFIG_MAPPING['llama']()
            
@@ -101,7 +123,7 @@ class TinyLlavaConfig(PretrainedConfig):
             self.text_config = AutoConfig.from_pretrained(self.llm_model_name_or_path, trust_remote_code=True)
             if text_config is not None:
                 self.text_config = self.text_config.from_dict(text_config)
-                
+        # 设置隐藏层大小和词汇表大小
         self.hidden_size = getattr(self.text_config, 'hidden_size',  getattr(self.text_config, 'model_dim', None))
         self.vocab_size = getattr(self.text_config, 'vocab_size',  None)
     
@@ -125,7 +147,7 @@ class TinyLlavaConfig(PretrainedConfig):
             self.vision_config = getattr(self.vision_config, 'vision_config', self.vision_config)
             if vision_config is not None:
                 self.vision_config = self.vision_config.from_dict(vision_config)
-                
+        # 设置视觉模型的名称或路径和其他相关参数
         self.vision_config.model_name_or_path = self.vision_model_name_or_path.split(':')[-1]
         self.vision_config.model_name_or_path2 = self.vision_model_name_or_path2.split(':')[-1]
         self.vision_hidden_size = getattr(self.vision_config, 'hidden_size',  None)  
