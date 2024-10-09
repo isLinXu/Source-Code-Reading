@@ -24,6 +24,29 @@ from omni_speech.model.speech_encoder.builder import build_speech_encoder
 
 
 def load_pretrained_model(model_path, model_base, is_lora=False, s2s=False, load_8bit=False, load_4bit=False, device="cuda", use_flash_attn=False, **kwargs):
+    """
+        加载预训练模型。
+
+        该函数根据提供的参数加载并准备一个预训练的AI模型。它支持不同的加载选项，如加载8位或4位模型，
+        使用Flash Attention等。它还支持LoRA模型的加载。
+
+        参数:
+        - model_path: 模型文件的路径。
+        - model_base: 基础模型的名称或路径。
+        - is_lora: 是否为LoRA模型。
+        - s2s: 是否为speech-to-speech模型。
+        - load_8bit: 是否加载8位模型。
+        - load_4bit: 是否加载4位模型。
+        - device: 所使用的设备（如'cuda'）。
+        - use_flash_attn: 是否使用Flash Attention。
+        - **kwargs: 其他关键字参数。
+
+        返回:
+        - tokenizer: 用于文本编码的tokenizer对象。
+        - model: 加载的预训练模型。
+        - context_len: 上下文长度。
+    """
+    # 设置模型加载选项
     if load_8bit:
         kwargs['load_in_8bit'] = True
     elif load_4bit:
@@ -37,12 +60,15 @@ def load_pretrained_model(model_path, model_base, is_lora=False, s2s=False, load
     else:
         kwargs['torch_dtype'] = torch.float16
 
+    # 设置Attention实现
     if use_flash_attn:
         kwargs['attn_implementation'] = 'flash_attention_2'
-    
+
+    # 选择模型类
     model_cls = OmniSpeech2SLlamaForCausalLM if s2s else OmniSpeechLlamaForCausalLM
 
     # Load OmniSpeech model
+    # 加载OmniSpeech模型
     if is_lora:
         assert model_base is not None, "model_base is required for LoRA models."
         from omni_speech.model.language_model.omni_speech_llama import OmniSpeechConfig
@@ -83,9 +109,11 @@ def load_pretrained_model(model_path, model_base, is_lora=False, s2s=False, load
         )
         model = model.to(device=device)
 
+    # 构建并加载speech encoder
     model.get_model().speech_encoder = build_speech_encoder(model.config)
     model.get_model().speech_encoder.to(device=device, dtype=torch.float16)
 
+    # 确定上下文长度
     if hasattr(model.config, "max_sequence_length"):
         context_len = model.config.max_sequence_length
     else:

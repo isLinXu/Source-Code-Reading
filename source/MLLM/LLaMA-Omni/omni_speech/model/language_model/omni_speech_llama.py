@@ -28,30 +28,40 @@ from ..omni_speech_arch import OmniSpeechMetaModel, OmniSpeechMetaForCausalLM
 
 
 class OmniSpeechConfig(LlamaConfig):
+    # 定义模型类型为 "omni_speech_llama"
     model_type = "omni_speech_llama"
 
 
 class OmniSpeechLlamaModel(OmniSpeechMetaModel, LlamaModel):
+    # 指定配置类为 OmniSpeechConfig
     config_class = OmniSpeechConfig
 
     def __init__(self, config: LlamaConfig):
+        # 调用父类的初始化方法
         super(OmniSpeechLlamaModel, self).__init__(config)
 
 
 class OmniSpeechLlamaForCausalLM(LlamaForCausalLM, OmniSpeechMetaForCausalLM):
+    # 指定配置类为 OmniSpeechConfig
     config_class = OmniSpeechConfig
 
     def __init__(self, config):
+        # 调用父类的初始化方法，注意这里调用了 LlamaForCausalLM 的初始化方法
         super(LlamaForCausalLM, self).__init__(config)
+        # 初始化 OmniSpeechLlamaModel 实例
         self.model = OmniSpeechLlamaModel(config)
+        # 获取配置中的预训练任务参数和词汇表大小
         self.pretraining_tp = config.pretraining_tp
         self.vocab_size = config.vocab_size
+        # 初始化线性层，用于语言模型的头部
         self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
 
         # Initialize weights and apply final processing
+        # 初始化权重并应用最终处理
         self.post_init()
 
     def get_model(self):
+        # 返回 OmniSpeechLlamaModel 实例
         return self.model
 
     def forward(
@@ -70,7 +80,7 @@ class OmniSpeechLlamaForCausalLM(LlamaForCausalLM, OmniSpeechMetaForCausalLM):
         return_dict: Optional[bool] = None,
         cache_position: Optional[torch.LongTensor] = None,
     ) -> Union[Tuple, CausalLMOutputWithPast]:
-
+        # 如果 inputs_embeds 为 None，则准备输入和标签
         if inputs_embeds is None:
             (
                 input_ids,
@@ -88,7 +98,7 @@ class OmniSpeechLlamaForCausalLM(LlamaForCausalLM, OmniSpeechMetaForCausalLM):
                 speech,
                 speech_lengths
             )
-
+        # 调用父类的 forward 方法
         return super().forward(
             input_ids=input_ids,
             attention_mask=attention_mask,
@@ -110,11 +120,13 @@ class OmniSpeechLlamaForCausalLM(LlamaForCausalLM, OmniSpeechMetaForCausalLM):
         speech_lengths: Optional[torch.Tensor] = None,
         **kwargs,
     ) -> Union[GenerateOutput, torch.LongTensor]:
+        # 获取位置编码和注意力掩码
         position_ids = kwargs.pop("position_ids", None)
         attention_mask = kwargs.pop("attention_mask", None)
+        # 如果提供了 inputs_embeds，则抛出不支持的错误
         if "inputs_embeds" in kwargs:
             raise NotImplementedError("`inputs_embeds` is not supported")
-
+        # 如果提供了 speech，则准备输入和标签
         if speech is not None:
             (
                 inputs,
@@ -133,8 +145,9 @@ class OmniSpeechLlamaForCausalLM(LlamaForCausalLM, OmniSpeechMetaForCausalLM):
                 speech_lengths
             )
         else:
+            # 否则，使用模型嵌入输入
             inputs_embeds = self.get_model().embed_tokens(inputs)
-
+        # 调用父类的 generate 方法
         return super().generate(
             position_ids=position_ids,
             attention_mask=attention_mask,
@@ -144,15 +157,21 @@ class OmniSpeechLlamaForCausalLM(LlamaForCausalLM, OmniSpeechMetaForCausalLM):
 
     def prepare_inputs_for_generation(self, input_ids, past_key_values=None,
                                       inputs_embeds=None, **kwargs):
+        # 从kwargs中弹出speech和speech_lengths参数
         speech = kwargs.pop("speech", None)
         speech_lengths = kwargs.pop("speech_lengths", None)
+
+        # 调用父类的prepare_inputs_for_generation方法获取基础输入
         inputs = super().prepare_inputs_for_generation(
             input_ids, past_key_values=past_key_values, inputs_embeds=inputs_embeds, **kwargs
         )
+
+        # 如果speech不为None，则将其添加到输入字典中
         if speech is not None:
             inputs['speech'] = speech
             inputs['speech_lengths'] = speech_lengths
         return inputs
 
+# 注册OmniSpeech配置类和OmniSpeechLlamaForCausalLM模型类
 AutoConfig.register("omni_speech_llama", OmniSpeechConfig)
 AutoModelForCausalLM.register(OmniSpeechConfig, OmniSpeechLlamaForCausalLM)
