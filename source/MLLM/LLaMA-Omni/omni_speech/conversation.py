@@ -32,6 +32,9 @@ class SeparatorStyle(Enum):
 @dataclasses.dataclass
 class Conversation:
     """A class that keeps all conversation history."""
+    """
+    Conversation类用于管理对话流程，包括对话历史、角色分配以及生成对话提示。
+    """
     system: str
     roles: List[str]
     messages: List[List[str]]
@@ -46,14 +49,24 @@ class Conversation:
     # Stop criteria (the default one is EOS token)
     stop_str: Union[str, List[str]] = None
     # Stops generation if meeting any token in this list
+    # 定义一个列表，用于存储生成过程中应停止的特定令牌ID
     stop_token_ids: List[int] = None
 
+    # 定义一个布尔变量，用于在特定情况下跳过下一个操作
     skip_next: bool = False
 
     def get_prompt(self):
+        """
+        根据当前对话历史和格式风格生成对话提示。
+
+        Returns:
+            str: 生成的对话提示字符串。
+        """
+        # 获取当前对话历史
         messages = self.messages
 
         if self.sep_style == SeparatorStyle.TWO:
+            # 使用两个不同的分隔符交替连接消
             seps = [self.sep, self.sep2]
             ret = self.system + seps[0]
             for i, (role, message) in enumerate(messages):
@@ -64,6 +77,7 @@ class Conversation:
                 else:
                     ret += role + ":"
         elif self.sep_style == SeparatorStyle.LLAMA_3:
+            # 使用特定于LLAMA_3风格的格式包装系统消息和普通消息
             wrap_sys = lambda msg: f"<|start_header_id|>system<|end_header_id|>\n\n{msg}<|eot_id|>" if len(msg) > 0 else msg
             ret = "<|begin_of_text|>" + wrap_sys(self.system)
             for i, (role, message) in enumerate(messages):
@@ -76,6 +90,7 @@ class Conversation:
                     ret += f"<|start_header_id|>{role}<|end_header_id|>\n\n"
             return ret
         elif self.sep_style == SeparatorStyle.LLAMA_2:
+            # 使用特定于LLAMA_2风格的格式包装系统消息和指令消息
             wrap_sys = lambda msg: f"<<SYS>>\n{msg}\n<</SYS>>\n\n" if len(msg) > 0 else msg
             wrap_inst = lambda msg: f"[INST] {msg} [/INST]"
             ret = ""
@@ -98,6 +113,7 @@ class Conversation:
                     ret += ""
             ret = ret.lstrip(self.sep)
         elif self.sep_style == SeparatorStyle.PLAIN:
+            # 使用简洁风格，无额外格式包装消息
             seps = [self.sep, self.sep2]
             ret = self.system
             for i, (role, message) in enumerate(messages):
@@ -108,14 +124,28 @@ class Conversation:
                 else:
                     ret += ""
         else:
+            # 如果分隔风格无效，抛出异常
             raise ValueError(f"Invalid style: {self.sep_style}")
 
         return ret
 
     def append_message(self, role, message):
+        """
+        向对话历史中添加一条消息。
+
+        Args:
+            role (str): 发送消息的角色。
+            message (str): 要添加的消息内容。
+        """
         self.messages.append([role, message])
     
     def to_gradio_chatbot(self):
+        """
+        将当前对话历史转换为适用于Gradio聊天机器人的格式。
+
+        Returns:
+            List[List[str, str]]: 适用于Gradio聊天机器人的消息列表。
+        """
         ret = []
         for i, (role, msg) in enumerate(self.messages[self.offset:]):
             if i % 2 == 0:
@@ -129,6 +159,12 @@ class Conversation:
         return ret
 
     def copy(self):
+        """
+        创建当前对话实例的一个深拷贝。
+
+        Returns:
+            Conversation: 当前对话的深拷贝实例。
+        """
         return Conversation(
             system=self.system,
             roles=self.roles,
@@ -140,6 +176,12 @@ class Conversation:
             version=self.version)
 
     def dict(self):
+        """
+        将当前对话实例转换为字典格式。
+
+        Returns:
+            dict: 包含对话所有信息的字典。
+        """
         if len(self.get_images()) > 0:
             return {
                 "system": self.system,
@@ -158,6 +200,7 @@ class Conversation:
             "sep2": self.sep2,
         }
 
+# 初始化多个预定义的对话模板
 conv_vicuna_v1 = Conversation(
     system="A chat between a curious user and an artificial intelligence assistant. " "The assistant gives helpful, detailed, and polite answers to the user's questions.",
     roles=("USER", "ASSISTANT"),
@@ -201,7 +244,7 @@ conv_plain = Conversation(
     sep="</s>",
 )
 
-
+# 设置默认对话模板和模板字典
 default_conversation = conv_llama_3
 conv_templates = {
     "v1": conv_vicuna_v1,
@@ -210,6 +253,6 @@ conv_templates = {
     "llama_3": conv_llama_3,
 }
 
-
+# 如果直接运行此脚本，打印默认对话模板的提示
 if __name__ == "__main__":
     print(default_conversation.get_prompt())
