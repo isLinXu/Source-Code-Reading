@@ -39,7 +39,10 @@ class TinyLlavaConfig(PretrainedConfig):
         tune_type_connector = 'frozen',
         tune_type_vision_tower = 'frozen',
         tune_vision_tower_from_layer = -1,
-        
+        # speech
+        audio_model_name_or_path='',
+        audio_encoder_type='whisper',
+        audio_feature_layer=-1,
         **kwargs
 
     ):
@@ -79,6 +82,11 @@ class TinyLlavaConfig(PretrainedConfig):
         self.use_cache = use_cache
         self.cache_dir = cache_dir
         self.tokenizer_use_fast = tokenizer_use_fast
+        # 音频初始化
+        self.audio_model_name_or_path = audio_model_name_or_path
+        self.audio_encoder_type = audio_encoder_type
+        self.audio_feature_layer = audio_feature_layer
+
         # 加载文本和视觉配置
         self._load_text_config(text_config)
         self._load_vision_config(vision_config)

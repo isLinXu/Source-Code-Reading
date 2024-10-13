@@ -10,7 +10,7 @@ from transformers import PreTrainedModel
 from transformers.modeling_outputs import CausalLMOutputWithPast
 from transformers.generation.utils import GenerateOutput
 
-from . import LLMFactory, ConnectorFactory, VisionTowerFactory
+from . import LLMFactory, ConnectorFactory, VisionTowerFactory, AudioTowerFactory
 from .configuration_tinyllava import TinyLlavaConfig
 from ..utils.constants import *
 # from tinyllava.utils.data_utils import get_value_from_kwargs
@@ -141,6 +141,11 @@ class TinyLlavaForConditionalGeneration(TinyLlavaPreTrainedModel):
         self.language_model = LLMFactory(config.llm_model_name_or_path)[0](config.text_config)
         # 创建视觉塔模块
         self.vision_tower = VisionTowerFactory(config.vision_model_name_or_path)(config.vision_config)
+        # 创建音频塔模块
+        self.audio_tower = AudioTowerFactory(config.audio_model_name_or_path)(config.audio_config)
+        # 创建音频投影器模块
+        self.audio_projector = build_audio_projector(config)
+
         # 创建连接器模块
         self.connector = ConnectorFactory(config.connector_type)(config)
         # 获取分词器类和加载后处理函数
@@ -156,6 +161,22 @@ class TinyLlavaForConditionalGeneration(TinyLlavaPreTrainedModel):
         self.post_init() # 执行初始化后的操作
 
     
+    def encode_audio(self, audio, audio_lengths):
+        """
+        对输入的音频数据进行编码，并返回编码后的特征向量。
+
+        参数:
+            audio (torch.Tensor): 输入的音频数据张量。
+            audio_lengths (torch.Tensor): 每个音频样本的有效长度。
+
+        返回:
+            List[torch.Tensor]: 编码后的音频特征向量列表。
+        """
+        audio_features = self.audio_tower(audio)
+        audio_features = self.audio_projector(audio_features)
+        return [audio_features[i, :audio_lengths[i]] for i in range(len(audio_features))]
+
+
     def get_input_embeddings(self):
         """
         获取语言模型的输入嵌入层。
@@ -265,6 +286,12 @@ class TinyLlavaForConditionalGeneration(TinyLlavaPreTrainedModel):
         # 返回调整后的token嵌入
         return model_embeds
 
+    def process_audio(self, audio):
+        if isinstance(audio, str):  # 如果是音频文件路径
+            audio_features = self.audio_preprocess(audio)
+        else:  # 如果已经是预处理后的特征
+            audio_features = audio
+        return self.audio_tower(audio_features)
     
     def forward(
         self,
@@ -448,7 +475,7 @@ class TinyLlavaForConditionalGeneration(TinyLlavaPreTrainedModel):
         
     def prepare_inputs_labels_for_multimodal(
         self, input_ids, position_ids, attention_mask, past_key_values, labels,
-        images, image_sizes=None
+        images, image_lengths, audio, audio_lengths
     ):
         """
         对输入数据进行处理，为跨模态任务准备输入和标签。
@@ -710,8 +737,136 @@ class TinyLlavaForConditionalGeneration(TinyLlavaPreTrainedModel):
         return None, position_ids, attention_mask, past_key_values, new_input_embeds, new_labels
     
 
-    
-    
+    def prepare_inputs_labels_for_multimodal(
+        self, input_ids, position_ids, attention_mask, past_key_values, labels,
+        images, image_lengths, audio, audio_lengths
+    ):
+        # 获取设备信息
+        device = input_ids.device if input_ids is not None else self.device
+        
+        # 如果没有多模态输入,直接返回原始输入
+        if images is None and audio is None:
+            return input_ids, position_ids, attention_mask, past_key_values, labels
+        
+        # 初始化新的输入嵌入和标签列表
+        new_input_embeds = []
+        new_labels = []
+        cur_image_idx = 0
+        cur_audio_idx = 0
+        
+        # 处理每个批次的输入
+        for batch_idx, cur_input_ids in enumerate(input_ids):
+            # 计算图像和音频标记的数量
+            num_images = (cur_input_ids == IMAGE_TOKEN_INDEX).sum().item()
+            num_audio = (cur_input_ids == AUDIO_TOKEN_INDEX).sum().item()
+            
+            # 如果没有图像或音频标记,直接添加当前输入
+            if num_images == 0 and num_audio == 0:
+                cur_input_embeds = self.get_model().embed_tokens(cur_input_ids)
+                new_input_embeds.append(cur_input_embeds)
+                new_labels.append(labels[batch_idx])
+                continue
+            
+            # 分割输入,处理图像和音频标记
+            token_indices = ([-1] + 
+                            torch.where(cur_input_ids == IMAGE_TOKEN_INDEX)[0].tolist() +
+                            torch.where(cur_input_ids == AUDIO_TOKEN_INDEX)[0].tolist() +
+                            [cur_input_ids.shape[0]])
+            token_indices.sort()
+            
+            cur_input_ids_list = []
+            cur_labels_list = []
+            for i in range(len(token_indices) - 1):
+                cur_input_ids_list.append(cur_input_ids[token_indices[i] + 1:token_indices[i + 1]])
+                cur_labels_list.append(labels[batch_idx][token_indices[i] + 1:token_indices[i + 1]])
+            
+            # 计算每个文本部分的长度
+            split_sizes = [x.shape[0] for x in cur_labels_list]
+            
+            # 嵌入文本部分
+            cur_input_embeds = self.get_model().embed_tokens(torch.cat(cur_input_ids_list))
+            cur_input_embeds_no_mmtoken = torch.split(cur_input_embeds, split_sizes, dim=0)
+            
+            # 处理文本、图像和音频
+            cur_new_input_embeds = []
+            cur_new_labels = []
+            
+            for i, (cur_input_ids_chunk, cur_labels_chunk) in enumerate(zip(cur_input_ids_list, cur_labels_list)):
+                cur_new_input_embeds.append(cur_input_embeds_no_mmtoken[i])
+                cur_new_labels.append(cur_labels_chunk)
+                
+                # 处理图像标记
+                if i < num_images + num_audio and cur_input_ids_chunk[-1] == IMAGE_TOKEN_INDEX:
+                # if i < num_images and cur_input_ids_chunk[-1] == IMAGE_TOKEN_INDEX:
+                    cur_image_features = self.encode_images(images[cur_image_idx].unsqueeze(0))[0]
+                    cur_image_idx += 1
+                    cur_new_input_embeds.append(cur_image_features)
+                    cur_new_labels.append(torch.full((cur_image_features.shape[0],), IGNORE_INDEX, 
+                                                    device=cur_labels_chunk.device, dtype=cur_labels_chunk.dtype))
+                
+                # 处理音频标记
+                elif i < num_images + num_audio and cur_input_ids_chunk[-1] == AUDIO_TOKEN_INDEX:
+                    cur_audio_features = self.encode_audio(audio[cur_audio_idx].unsqueeze(0), 
+                                                        audio_lengths[cur_audio_idx].unsqueeze(0))[0]
+                    cur_audio_idx += 1
+                    cur_new_input_embeds.append(cur_audio_features)
+                    cur_new_labels.append(torch.full((cur_audio_features.shape[0],), IGNORE_INDEX, 
+                                                    device=cur_labels_chunk.device, dtype=cur_labels_chunk.dtype))
+            
+            # 将处理后的嵌入和标签移至正确的设备
+            cur_new_input_embeds = [x.to(device) for x in cur_new_input_embeds]
+            
+            # 合并新的输入嵌入和标签
+            cur_new_input_embeds = torch.cat(cur_new_input_embeds)
+            cur_new_labels = torch.cat(cur_new_labels)
+            
+            new_input_embeds.append(cur_new_input_embeds)
+            new_labels.append(cur_new_labels)
+        
+        # 截断序列到最大长度
+        tokenizer_model_max_length = getattr(self.config, 'tokenizer_model_max_length', None)
+        if tokenizer_model_max_length is not None:
+            new_input_embeds = [x[:tokenizer_model_max_length] for x in new_input_embeds]
+            new_labels = [x[:tokenizer_model_max_length] for x in new_labels]
+        
+        # 填充处理
+        max_len = max(x.shape[0] for x in new_input_embeds)
+        batch_size = len(new_input_embeds)
+        
+        new_input_embeds_padded = []
+        new_labels_padded = torch.full((batch_size, max_len), IGNORE_INDEX, dtype=new_labels[0].dtype, device=device)
+        attention_mask = torch.zeros((batch_size, max_len), dtype=attention_mask.dtype, device=device)
+        position_ids = torch.zeros((batch_size, max_len), dtype=position_ids.dtype, device=device)
+        
+        for i, (cur_new_embed, cur_new_labels) in enumerate(zip(new_input_embeds, new_labels)):
+            cur_len = cur_new_embed.shape[0]
+            if getattr(self.config, 'tokenizer_padding_side', 'right') == "left":
+                new_input_embeds_padded.append(torch.cat((
+                    torch.zeros((max_len - cur_len, cur_new_embed.shape[1]), dtype=cur_new_embed.dtype, device=device),
+                    cur_new_embed
+                ), dim=0))
+                if cur_len > 0:
+                    new_labels_padded[i, -cur_len:] = cur_new_labels
+                    attention_mask[i, -cur_len:] = True
+                    position_ids[i, -cur_len:] = torch.arange(0, cur_len, dtype=position_ids.dtype, device=device)
+            else:
+                new_input_embeds_padded.append(torch.cat((
+                    cur_new_embed,
+                    torch.zeros((max_len - cur_len, cur_new_embed.shape[1]), dtype=cur_new_embed.dtype, device=device)
+                ), dim=0))
+                if cur_len > 0:
+                    new_labels_padded[i, :cur_len] = cur_new_labels
+                    attention_mask[i, :cur_len] = True
+                    position_ids[i, :cur_len] = torch.arange(0, cur_len, dtype=position_ids.dtype, device=device)
+        
+        new_input_embeds = torch.stack(new_input_embeds_padded, dim=0)
+        
+        # 返回处理后的数据
+        return None, position_ids, attention_mask, past_key_values, new_input_embeds, new_labels_padded
+
+
+
+
     def load_llm(self, **kwargs):
         """
         加载预训练语言模型。

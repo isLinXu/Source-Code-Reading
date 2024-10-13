@@ -13,6 +13,9 @@ LOGDIR = "."
 IGNORE_INDEX = -100
 # 图片标记索引值，用于标记图片位置
 IMAGE_TOKEN_INDEX = -200
+# 音频标记索引值，用于标记音频位置
+AUDIO_TOKEN_INDEX = -300
+
 # 默认图片标记，用于替换图片位置
 DEFAULT_IMAGE_TOKEN = "<image>"
 # 默认图片块标记，用于替换图片块位置
