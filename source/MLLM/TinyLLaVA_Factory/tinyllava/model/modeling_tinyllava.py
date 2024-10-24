@@ -473,269 +473,269 @@ class TinyLlavaForConditionalGeneration(TinyLlavaPreTrainedModel):
             inputs['image_sizes'] = image_sizes
         return inputs
         
-    def prepare_inputs_labels_for_multimodal(
-        self, input_ids, position_ids, attention_mask, past_key_values, labels,
-        images, image_lengths, audio, audio_lengths
-    ):
-        """
-        对输入数据进行处理，为跨模态任务准备输入和标签。
-        工作原理：
-        该函数的主要目的是为了准备多模态输入数据和对应的标签，以便于模型能够处理这些数据并进行训练或推理。多模态输入通常指的是来自不同感官模态的数据，例如文本、图像、音频等。函数会根据配置和输入数据的不同情况，对输入数据进行相应的处理，包括截断、填充、生成注意力掩码和位置ID等。
-        实现细节
-        1.获取配置参数：
-            函数首先尝试从配置中获取 tokenizer_model_max_length 参数，这个参数用于限制输入序列的最大长度。如果配置中没有设置该参数，则默认为 None。
-        2.截断输入数据：
-            如果 tokenizer_model_max_length 不为 None，函数会对输入的嵌入序列 new_input_embeds 和标签序列 new_labels 进行截断，只保留前 tokenizer_model_max_length 个元素。
-        3.计算最大长度：
-            函数计算所有输入嵌入序列的最大长度 max_len，并获取批量大小 batch_size。
-        4.初始化填充后的数据结构：
-            创建用于存储填充后输入嵌入序列的列表 new_input_embeds_padded。
-            创建一个与最大长度相同的全零标签张量 new_labels_padded，用于存储填充后的标签。
-            创建一个全零的注意力掩码张量 attention_mask，用于指示哪些位置是实际的输入数据。
-            创建一个全零的位置ID张量 position_ids，用于表示每个位置在序列中的位置。
-        5.填充输入数据和标签：
-            函数遍历每个输入嵌入序列和对应的标签序列。
-            根据配置中的 tokenizer_padding_side 参数（默认为 'right'），决定是在左侧还是右侧进行填充。
-            对于每个序列，创建一个全零张量用于填充，并将其与原始序列拼接。
-            如果序列长度大于0，则将标签填充到 new_labels_padded 的相应位置，并更新 attention_mask 和 position_ids。
-        6.堆叠填充后的数据结构：
-            使用 torch.stack 函数将填充后的输入嵌入序列列表 new_input_embeds_padded 堆叠成一个张量 new_input_embeds。
-        7.处理可选的输出：
-            如果 _labels 为 None，则 new_labels 也设置为 None；否则，将填充后的标签张量 new_labels_padded 赋值给 new_labels。
-            如果 _attention_mask 为 None，则 attention_mask 也设置为 None；否则，将 attention_mask 转换为 _attention_mask 的数据类型。
-            如果 _position_ids 为 None，则 position_ids 也设置为 None。
-            返回结果：
-            函数返回 None, position_ids, attention_mask, past_key_values, new_input_embeds, new_labels，这些数据结构将被用于模型的训练或推理过程。
-
-        Args:
-            input_ids (torch.LongTensor): 输入的文本id张量。
-            position_ids (Optional[torch.LongTensor]): 输入的位置id张量。
-            attention_mask (Optional[torch.Tensor]): 注意力掩码张量。
-            past_key_values (Optional[List[torch.FloatTensor]]): 上一步的key和value缓存。
-            labels (Optional[torch.LongTensor]): 文本标签张量。
-            images (torch.FloatTensor): 图像张量。
-            image_sizes (Optional[List[List[int]]]): 图像尺寸列表。
-
-        Returns:
-            Tuple[None, Optional[torch.Tensor], Optional[torch.Tensor], Optional[List[torch.FloatTensor]],
-                   Optional[torch.Tensor], Optional[torch.Tensor]]: 返回处理后的输入数据元组，包括：
-                - None: 当前未使用，占位符。
-                - position_ids (Optional[torch.Tensor]): 处理后的位置id张量。
-                - attention_mask (Optional[torch.Tensor]): 处理后的注意力掩码张量。
-                - past_key_values (Optional[List[torch.FloatTensor]]): 处理后的上一步的key和value缓存。
-                - new_input_embeds (Optional[torch.Tensor]): 处理后的输入嵌入张量。
-                - new_labels (Optional[torch.Tensor]): 处理后的标签张量。
-
-        Raises:
-            NotImplementedError: 如果config的tune_mm_mlp_adapter属性为True，则抛出此异常，表示该特性尚未实现。
-
-        """
-        vision_tower = self.vision_tower  # 获取视觉塔对象
-        if vision_tower is None or images is None or input_ids.shape[1] == 1:  # 检查视觉塔对象、图像数据或输入ID的形状是否满足条件
-            return input_ids, position_ids, attention_mask, past_key_values, None, labels  # 如果不满足条件，返回相应的变量
-
-        image_features = self.encode_images(images)  # 对图像进行编码，提取特征
-
-        # TODO: 图像开始/结束功能在此处未实现以支持预训练。
-        if getattr(self.config, 'tune_mm_mlp_adapter', False):  # 检查配置中是否启用了调整MM MLP适配器的选项
-            raise NotImplementedError  # 如果启用，抛出未实现错误
-
-        # Let's just add dummy tensors if they do not exist,
-        # it is a headache to deal with None all the time.
-        # But it is not ideal, and if you have a better idea,
-        # please open an issue / submit a PR, thanks.
-        # 定义_labels变量，用于存储标签信息
-        _labels = labels
-        # 定义_position_ids变量，用于存储位置ID信息
-        _position_ids = position_ids
-        # 定义_attention_mask变量，用于存储注意力掩码信息
-        _attention_mask = attention_mask
-
-        # 如果attention_mask为None，则创建一个与input_ids形状相同的全1张量作为默认值，并将其数据类型设置为torch.bool
-        if attention_mask is None:
-            attention_mask = torch.ones_like(input_ids, dtype=torch.bool)
-        else:
-            # 如果attention_mask不为None，则将其转换为布尔类型
-            attention_mask = attention_mask.bool()
-
-        # 如果position_ids为None，则创建一个从0开始，长度与input_ids第二维相同的张量作为默认值，并将其数据类型设置为torch.long
-        if position_ids is None:
-            position_ids = torch.arange(0, input_ids.shape[1], dtype=torch.long, device=input_ids.device)
-
-        # 如果labels为None，则创建一个与input_ids形状相同的全IGNORE_INDEX张量作为默认值
-        if labels is None:
-            labels = torch.full_like(input_ids, IGNORE_INDEX)
-
-        # remove the padding using attention_mask -- FIXME
-        # 将输入的input_ids赋值给_input_ids变量，用于后续可能的引用或备份
-        # 使用列表推导式，根据attention_mask过滤input_ids列表中的元素
-        # 对于每一组cur_input_ids和cur_attention_mask，只保留cur_attention_mask为True的元素
-        _input_ids = input_ids
-        input_ids = [cur_input_ids[cur_attention_mask] for cur_input_ids, cur_attention_mask in zip(input_ids, attention_mask)]
-        # 使用列表推导式，根据attention_mask过滤labels列表中的元素
-        # 对于每一组cur_labels和cur_attention_mask，只保留cur_attention_mask为True的元素
-        labels = [cur_labels[cur_attention_mask] for cur_labels, cur_attention_mask in zip(labels, attention_mask)]
-
-        # 初始化新的输入嵌入和标签列表
-        new_input_embeds = []
-        new_labels = []
-        # 当前图像索引初始化为0
-        cur_image_idx = 0
-        # 遍历输入ID的批次索引和当前输入ID
-        for batch_idx, cur_input_ids in enumerate(input_ids):
-            # 计算当前批次中图像标记的数量
-            num_images = (cur_input_ids == IMAGE_TOKEN_INDEX).sum()
-            # 如果当前批次中没有图像标记
-            if num_images == 0:
-                # 获取当前图像特征
-                cur_image_features = image_features[cur_image_idx]
-                # 获取当前输入ID的嵌入
-                cur_input_embeds_1 = self.language_model.get_input_embeddings()(cur_input_ids)
-                # 将当前输入嵌入和图像特征拼接起来
-                cur_input_embeds = torch.cat([cur_input_embeds_1, cur_image_features[0:0]], dim=0)
-                # 将拼接后的输入嵌入添加到新输入嵌入列表
-                new_input_embeds.append(cur_input_embeds)
-                # 将当前批次的标签添加到新标签列表
-                new_labels.append(labels[batch_idx])
-                # 当前图像索引加1
-                cur_image_idx += 1
-                # 继续下一个批次
-                continue
-
-            # image_token_indices 用于存储图像标记的索引，初始化为-1（表示序列开始前的位置）
-            # 然后通过torch.where查找cur_input_ids中等于IMAGE_TOKEN_INDEX的所有索引，并转换为列表
-            # 最后添加cur_input_ids的长度（表示序列结束后的位置）
-            image_token_indices = [-1] + torch.where(cur_input_ids == IMAGE_TOKEN_INDEX)[0].tolist() + [cur_input_ids.shape[0]]
-            # cur_input_ids_noim 用于存储去除图像标记后的输入ID序列
-            cur_input_ids_noim = []
-            # cur_labels 用于存储当前批次的标签
-            cur_labels = labels[batch_idx]
-            # cur_labels_noim 用于存储去除图像标记后的标签序列
-            cur_labels_noim = []
-            # 遍历image_token_indices列表，获取每个图像标记之间的输入ID和标签
-            for i in range(len(image_token_indices) - 1):
-                # 将当前图像标记之间的输入ID添加到cur_input_ids_noim列表中
-                cur_input_ids_noim.append(cur_input_ids[image_token_indices[i]+1:image_token_indices[i+1]])
-                # 将当前图像标记之间的标签添加到cur_labels_noim列表中
-                cur_labels_noim.append(cur_labels[image_token_indices[i]+1:image_token_indices[i+1]])
-            # 计算cur_labels_noim中每个元素的形状大小，存储在split_sizes列表中
-            split_sizes = [x.shape[0] for x in cur_labels_noim]
-            # 获取输入嵌入，使用torch.cat将cur_input_ids_noim连接起来
-            cur_input_embeds = self.language_model.get_input_embeddings()(torch.cat(cur_input_ids_noim))
-            # 根据split_sizes将cur_input_embeds分割成多个部分，存储在cur_input_embeds_no_im列表中
-            cur_input_embeds_no_im = torch.split(cur_input_embeds, split_sizes, dim=0)
-            # 初始化新的输入嵌入列表和新的标签列表
-            cur_new_input_embeds = []
-            cur_new_labels = []
-
-            # 遍历所有图片的数量加一（可能是为了处理边界情况）
-            for i in range(num_images + 1):
-                # 将当前输入嵌入（不包括图片）添加到新的输入嵌入列表中
-                cur_new_input_embeds.append(cur_input_embeds_no_im[i])
-                # 将当前标签（不包括图片）添加到新的标签列表中
-                cur_new_labels.append(cur_labels_noim[i])
-                # 如果当前索引小于图片数量
-                if i < num_images:
-                    # 获取当前图片特征
-                    cur_image_features = image_features[cur_image_idx]
-                    # 图片索引加一，以便下次循环获取下一张图片特征
-                    cur_image_idx += 1
-                    # 将当前图片特征添加到新的输入嵌入列表中
-                    cur_new_input_embeds.append(cur_image_features)
-                    # 创建一个与当前图片特征形状相同的张量，填充忽略索引值，并添加到新的标签列表中
-                    # 这可能是为了标记图片部分在后续处理中不被考虑为有效标签
-                    cur_new_labels.append(torch.full((cur_image_features.shape[0],), IGNORE_INDEX, device=cur_labels.device, dtype=cur_labels.dtype))
-
-            # 将cur_new_input_embeds中的每个元素移动到self.device指定的设备上（如GPU）
-            cur_new_input_embeds = [x.to(self.device) for x in cur_new_input_embeds]
-            # 将cur_new_input_embeds列表中的所有张量沿第0维进行拼接
-            cur_new_input_embeds = torch.cat(cur_new_input_embeds)
-            # 将cur_new_labels列表中的所有张量沿第0维进行拼接
-            cur_new_labels = torch.cat(cur_new_labels)
-            # 将拼接后的cur_new_input_embeds添加到new_input_embeds列表中
-            new_input_embeds.append(cur_new_input_embeds)
-            # 将拼接后的cur_new_labels添加到new_labels列表中
-            new_labels.append(cur_new_labels)
-
-        # Truncate sequences to max length as image embeddings can make the sequence longer
-        # 获取配置中的tokenizer_model_max_length参数，如果没有设置则默认为None
-        tokenizer_model_max_length = getattr(self.config, 'tokenizer_model_max_length', None)
-        # 如果tokenizer_model_max_length不为None，则对new_input_embeds和new_labels进行截断
-        if tokenizer_model_max_length is not None:
-            # 对new_input_embeds中的每个元素进行截断，只保留前tokenizer_model_max_length个元素
-            new_input_embeds = [x[:tokenizer_model_max_length] for x in new_input_embeds]
-            # 对new_labels中的每个元素进行截断，只保留前tokenizer_model_max_length个元素
-            new_labels = [x[:tokenizer_model_max_length] for x in new_labels]
-
-        # Combine them
-        # 计算输入嵌入序列的最大长度
-        max_len = max(x.shape[0] for x in new_input_embeds)
-        # 获取批量大小
-        batch_size = len(new_input_embeds)
-        # 初始化填充后的输入嵌入序列列表
-        new_input_embeds_padded = []
-        # 创建一个与最大长度相同，且所有元素都为IGNORE_INDEX的标签张量
-        new_labels_padded = torch.full((batch_size, max_len), IGNORE_INDEX, dtype=new_labels[0].dtype, device=new_labels[0].device)
-        # 创建一个全零的注意力掩码张量
-        attention_mask = torch.zeros((batch_size, max_len), dtype=attention_mask.dtype, device=attention_mask.device)
-        # 创建一个全零的位置ID张量
-        position_ids = torch.zeros((batch_size, max_len), dtype=position_ids.dtype, device=position_ids.device)
-
-        # 遍历新的输入嵌入和新的标签
-        for i, (cur_new_embed, cur_new_labels) in enumerate(zip(new_input_embeds, new_labels)):
-            # 获取当前嵌入的长度
-            cur_len = cur_new_embed.shape[0]
-            # 如果配置中的tokenizer_padding_side为'left'，则进行左填充
-            if getattr(self.config, 'tokenizer_padding_side', 'right') == "left":
-                # 创建一个全零张量，其形状为(max_len - cur_len, cur_new_embed.shape[1])，数据类型和设备与cur_new_embed相同
-                new_input_embeds_padded.append(torch.cat((
-                    torch.zeros((max_len - cur_len, cur_new_embed.shape[1]), dtype=cur_new_embed.dtype, device=cur_new_embed.device),
-                    cur_new_embed # 将当前嵌入追加到全零张量的右侧
-                ), dim=0))
-
-                # 如果当前嵌入长度大于0，则进行以下操作
-                if cur_len > 0:
-                    # 将新的标签填充到new_labels_padded的相应位置
-                    new_labels_padded[i, -cur_len:] = cur_new_labels
-                    # 更新attention_mask，将当前嵌入对应的部分设置为True
-                    attention_mask[i, -cur_len:] = True
-                    # 更新position_ids，生成一个从0到cur_len-1的张量，并将其填充到position_ids的相应位置
-                    position_ids[i, -cur_len:] = torch.arange(0, cur_len, dtype=position_ids.dtype, device=position_ids.device)
-            else:
-                # 如果配置中的tokenizer_padding_side不为'left'，则进行右填充
-                new_input_embeds_padded.append(torch.cat((
-                    cur_new_embed, # # 将当前嵌入追加到全零张量的左侧
-                    torch.zeros((max_len - cur_len, cur_new_embed.shape[1]), dtype=cur_new_embed.dtype, device=cur_new_embed.device)
-                ), dim=0))
-                # 如果当前嵌入长度大于0，则进行以下操作
-                if cur_len > 0:
-                    # 将新的标签填充到new_labels_padded的相应位置，从左侧开始填充
-                    new_labels_padded[i, :cur_len] = cur_new_labels
-                    # 更新attention_mask，将当前嵌入对应的部分设置为True，从左侧开始
-                    attention_mask[i, :cur_len] = True
-                    # 更新position_ids，生成一个从0到cur_len-1的张量，并将其填充到position_ids的相应位置，从左侧开始
-                    position_ids[i, :cur_len] = torch.arange(0, cur_len, dtype=position_ids.dtype, device=position_ids.device)
-
-        # 使用torch.stack函数将new_input_embeds_padded列表中的张量沿第0维堆叠起来，生成新的张量new_input_embeds
-        new_input_embeds = torch.stack(new_input_embeds_padded, dim=0)
-
-        # 如果_labels为None，则new_labels也设置为None；否则，将new_labels_padded赋值给new_labels
-        if _labels is None:
-            new_labels = None
-        else:
-            new_labels = new_labels_padded
-
-        # 如果_attention_mask为None，则attention_mask也设置为None；否则，将attention_mask转换为_attention_mask的数据类型
-        if _attention_mask is None:
-            attention_mask = None
-        else:
-            attention_mask = attention_mask.to(dtype=_attention_mask.dtype)
-        # 如果_position_ids为None，则position_ids也设置为None
-        if _position_ids is None:
-            position_ids = None
-        # 返回None, position_ids, attention_mask, past_key_values, new_input_embeds, new_labels
-        return None, position_ids, attention_mask, past_key_values, new_input_embeds, new_labels
-    
+    # def prepare_inputs_labels_for_multimodal(
+    #     self, input_ids, position_ids, attention_mask, past_key_values, labels,
+    #     images, image_lengths, audio, audio_lengths
+    # ):
+    #     """
+    #     对输入数据进行处理，为跨模态任务准备输入和标签。
+    #     工作原理：
+    #     该函数的主要目的是为了准备多模态输入数据和对应的标签，以便于模型能够处理这些数据并进行训练或推理。多模态输入通常指的是来自不同感官模态的数据，例如文本、图像、音频等。函数会根据配置和输入数据的不同情况，对输入数据进行相应的处理，包括截断、填充、生成注意力掩码和位置ID等。
+    #     实现细节
+    #     1.获取配置参数：
+    #         函数首先尝试从配置中获取 tokenizer_model_max_length 参数，这个参数用于限制输入序列的最大长度。如果配置中没有设置该参数，则默认为 None。
+    #     2.截断输入数据：
+    #         如果 tokenizer_model_max_length 不为 None，函数会对输入的嵌入序列 new_input_embeds 和标签序列 new_labels 进行截断，只保留前 tokenizer_model_max_length 个元素。
+    #     3.计算最大长度：
+    #         函数计算所有输入嵌入序列的最大长度 max_len，并获取批量大小 batch_size。
+    #     4.初始化填充后的数据结构：
+    #         创建用于存储填充后输入嵌入序列的列表 new_input_embeds_padded。
+    #         创建一个与最大长度相同的全零标签张量 new_labels_padded，用于存储填充后的标签。
+    #         创建一个全零的注意力掩码张量 attention_mask，用于指示哪些位置是实际的输入数据。
+    #         创建一个全零的位置ID张量 position_ids，用于表示每个位置在序列中的位置。
+    #     5.填充输入数据和标签：
+    #         函数遍历每个输入嵌入序列和对应的标签序列。
+    #         根据配置中的 tokenizer_padding_side 参数（默认为 'right'），决定是在左侧还是右侧进行填充。
+    #         对于每个序列，创建一个全零张量用于填充，并将其与原始序列拼接。
+    #         如果序列长度大于0，则将标签填充到 new_labels_padded 的相应位置，并更新 attention_mask 和 position_ids。
+    #     6.堆叠填充后的数据结构：
+    #         使用 torch.stack 函数将填充后的输入嵌入序列列表 new_input_embeds_padded 堆叠成一个张量 new_input_embeds。
+    #     7.处理可选的输出：
+    #         如果 _labels 为 None，则 new_labels 也设置为 None；否则，将填充后的标签张量 new_labels_padded 赋值给 new_labels。
+    #         如果 _attention_mask 为 None，则 attention_mask 也设置为 None；否则，将 attention_mask 转换为 _attention_mask 的数据类型。
+    #         如果 _position_ids 为 None，则 position_ids 也设置为 None。
+    #         返回结果：
+    #         函数返回 None, position_ids, attention_mask, past_key_values, new_input_embeds, new_labels，这些数据结构将被用于模型的训练或推理过程。
+    #
+    #     Args:
+    #         input_ids (torch.LongTensor): 输入的文本id张量。
+    #         position_ids (Optional[torch.LongTensor]): 输入的位置id张量。
+    #         attention_mask (Optional[torch.Tensor]): 注意力掩码张量。
+    #         past_key_values (Optional[List[torch.FloatTensor]]): 上一步的key和value缓存。
+    #         labels (Optional[torch.LongTensor]): 文本标签张量。
+    #         images (torch.FloatTensor): 图像张量。
+    #         image_sizes (Optional[List[List[int]]]): 图像尺寸列表。
+    #
+    #     Returns:
+    #         Tuple[None, Optional[torch.Tensor], Optional[torch.Tensor], Optional[List[torch.FloatTensor]],
+    #                Optional[torch.Tensor], Optional[torch.Tensor]]: 返回处理后的输入数据元组，包括：
+    #             - None: 当前未使用，占位符。
+    #             - position_ids (Optional[torch.Tensor]): 处理后的位置id张量。
+    #             - attention_mask (Optional[torch.Tensor]): 处理后的注意力掩码张量。
+    #             - past_key_values (Optional[List[torch.FloatTensor]]): 处理后的上一步的key和value缓存。
+    #             - new_input_embeds (Optional[torch.Tensor]): 处理后的输入嵌入张量。
+    #             - new_labels (Optional[torch.Tensor]): 处理后的标签张量。
+    #
+    #     Raises:
+    #         NotImplementedError: 如果config的tune_mm_mlp_adapter属性为True，则抛出此异常，表示该特性尚未实现。
+    #
+    #     """
+    #     vision_tower = self.vision_tower  # 获取视觉塔对象
+    #     if vision_tower is None or images is None or input_ids.shape[1] == 1:  # 检查视觉塔对象、图像数据或输入ID的形状是否满足条件
+    #         return input_ids, position_ids, attention_mask, past_key_values, None, labels  # 如果不满足条件，返回相应的变量
+    #
+    #     image_features = self.encode_images(images)  # 对图像进行编码，提取特征
+    #
+    #     # TODO: 图像开始/结束功能在此处未实现以支持预训练。
+    #     if getattr(self.config, 'tune_mm_mlp_adapter', False):  # 检查配置中是否启用了调整MM MLP适配器的选项
+    #         raise NotImplementedError  # 如果启用，抛出未实现错误
+    #
+    #     # Let's just add dummy tensors if they do not exist,
+    #     # it is a headache to deal with None all the time.
+    #     # But it is not ideal, and if you have a better idea,
+    #     # please open an issue / submit a PR, thanks.
+    #     # 定义_labels变量，用于存储标签信息
+    #     _labels = labels
+    #     # 定义_position_ids变量，用于存储位置ID信息
+    #     _position_ids = position_ids
+    #     # 定义_attention_mask变量，用于存储注意力掩码信息
+    #     _attention_mask = attention_mask
+    #
+    #     # 如果attention_mask为None，则创建一个与input_ids形状相同的全1张量作为默认值，并将其数据类型设置为torch.bool
+    #     if attention_mask is None:
+    #         attention_mask = torch.ones_like(input_ids, dtype=torch.bool)
+    #     else:
+    #         # 如果attention_mask不为None，则将其转换为布尔类型
+    #         attention_mask = attention_mask.bool()
+    #
+    #     # 如果position_ids为None，则创建一个从0开始，长度与input_ids第二维相同的张量作为默认值，并将其数据类型设置为torch.long
+    #     if position_ids is None:
+    #         position_ids = torch.arange(0, input_ids.shape[1], dtype=torch.long, device=input_ids.device)
+    #
+    #     # 如果labels为None，则创建一个与input_ids形状相同的全IGNORE_INDEX张量作为默认值
+    #     if labels is None:
+    #         labels = torch.full_like(input_ids, IGNORE_INDEX)
+    #
+    #     # remove the padding using attention_mask -- FIXME
+    #     # 将输入的input_ids赋值给_input_ids变量，用于后续可能的引用或备份
+    #     # 使用列表推导式，根据attention_mask过滤input_ids列表中的元素
+    #     # 对于每一组cur_input_ids和cur_attention_mask，只保留cur_attention_mask为True的元素
+    #     _input_ids = input_ids
+    #     input_ids = [cur_input_ids[cur_attention_mask] for cur_input_ids, cur_attention_mask in zip(input_ids, attention_mask)]
+    #     # 使用列表推导式，根据attention_mask过滤labels列表中的元素
+    #     # 对于每一组cur_labels和cur_attention_mask，只保留cur_attention_mask为True的元素
+    #     labels = [cur_labels[cur_attention_mask] for cur_labels, cur_attention_mask in zip(labels, attention_mask)]
+    #
+    #     # 初始化新的输入嵌入和标签列表
+    #     new_input_embeds = []
+    #     new_labels = []
+    #     # 当前图像索引初始化为0
+    #     cur_image_idx = 0
+    #     # 遍历输入ID的批次索引和当前输入ID
+    #     for batch_idx, cur_input_ids in enumerate(input_ids):
+    #         # 计算当前批次中图像标记的数量
+    #         num_images = (cur_input_ids == IMAGE_TOKEN_INDEX).sum()
+    #         # 如果当前批次中没有图像标记
+    #         if num_images == 0:
+    #             # 获取当前图像特征
+    #             cur_image_features = image_features[cur_image_idx]
+    #             # 获取当前输入ID的嵌入
+    #             cur_input_embeds_1 = self.language_model.get_input_embeddings()(cur_input_ids)
+    #             # 将当前输入嵌入和图像特征拼接起来
+    #             cur_input_embeds = torch.cat([cur_input_embeds_1, cur_image_features[0:0]], dim=0)
+    #             # 将拼接后的输入嵌入添加到新输入嵌入列表
+    #             new_input_embeds.append(cur_input_embeds)
+    #             # 将当前批次的标签添加到新标签列表
+    #             new_labels.append(labels[batch_idx])
+    #             # 当前图像索引加1
+    #             cur_image_idx += 1
+    #             # 继续下一个批次
+    #             continue
+    #
+    #         # image_token_indices 用于存储图像标记的索引，初始化为-1（表示序列开始前的位置）
+    #         # 然后通过torch.where查找cur_input_ids中等于IMAGE_TOKEN_INDEX的所有索引，并转换为列表
+    #         # 最后添加cur_input_ids的长度（表示序列结束后的位置）
+    #         image_token_indices = [-1] + torch.where(cur_input_ids == IMAGE_TOKEN_INDEX)[0].tolist() + [cur_input_ids.shape[0]]
+    #         # cur_input_ids_noim 用于存储去除图像标记后的输入ID序列
+    #         cur_input_ids_noim = []
+    #         # cur_labels 用于存储当前批次的标签
+    #         cur_labels = labels[batch_idx]
+    #         # cur_labels_noim 用于存储去除图像标记后的标签序列
+    #         cur_labels_noim = []
+    #         # 遍历image_token_indices列表，获取每个图像标记之间的输入ID和标签
+    #         for i in range(len(image_token_indices) - 1):
+    #             # 将当前图像标记之间的输入ID添加到cur_input_ids_noim列表中
+    #             cur_input_ids_noim.append(cur_input_ids[image_token_indices[i]+1:image_token_indices[i+1]])
+    #             # 将当前图像标记之间的标签添加到cur_labels_noim列表中
+    #             cur_labels_noim.append(cur_labels[image_token_indices[i]+1:image_token_indices[i+1]])
+    #         # 计算cur_labels_noim中每个元素的形状大小，存储在split_sizes列表中
+    #         split_sizes = [x.shape[0] for x in cur_labels_noim]
+    #         # 获取输入嵌入，使用torch.cat将cur_input_ids_noim连接起来
+    #         cur_input_embeds = self.language_model.get_input_embeddings()(torch.cat(cur_input_ids_noim))
+    #         # 根据split_sizes将cur_input_embeds分割成多个部分，存储在cur_input_embeds_no_im列表中
+    #         cur_input_embeds_no_im = torch.split(cur_input_embeds, split_sizes, dim=0)
+    #         # 初始化新的输入嵌入列表和新的标签列表
+    #         cur_new_input_embeds = []
+    #         cur_new_labels = []
+    #
+    #         # 遍历所有图片的数量加一（可能是为了处理边界情况）
+    #         for i in range(num_images + 1):
+    #             # 将当前输入嵌入（不包括图片）添加到新的输入嵌入列表中
+    #             cur_new_input_embeds.append(cur_input_embeds_no_im[i])
+    #             # 将当前标签（不包括图片）添加到新的标签列表中
+    #             cur_new_labels.append(cur_labels_noim[i])
+    #             # 如果当前索引小于图片数量
+    #             if i < num_images:
+    #                 # 获取当前图片特征
+    #                 cur_image_features = image_features[cur_image_idx]
+    #                 # 图片索引加一，以便下次循环获取下一张图片特征
+    #                 cur_image_idx += 1
+    #                 # 将当前图片特征添加到新的输入嵌入列表中
+    #                 cur_new_input_embeds.append(cur_image_features)
+    #                 # 创建一个与当前图片特征形状相同的张量，填充忽略索引值，并添加到新的标签列表中
+    #                 # 这可能是为了标记图片部分在后续处理中不被考虑为有效标签
+    #                 cur_new_labels.append(torch.full((cur_image_features.shape[0],), IGNORE_INDEX, device=cur_labels.device, dtype=cur_labels.dtype))
+    #
+    #         # 将cur_new_input_embeds中的每个元素移动到self.device指定的设备上（如GPU）
+    #         cur_new_input_embeds = [x.to(self.device) for x in cur_new_input_embeds]
+    #         # 将cur_new_input_embeds列表中的所有张量沿第0维进行拼接
+    #         cur_new_input_embeds = torch.cat(cur_new_input_embeds)
+    #         # 将cur_new_labels列表中的所有张量沿第0维进行拼接
+    #         cur_new_labels = torch.cat(cur_new_labels)
+    #         # 将拼接后的cur_new_input_embeds添加到new_input_embeds列表中
+    #         new_input_embeds.append(cur_new_input_embeds)
+    #         # 将拼接后的cur_new_labels添加到new_labels列表中
+    #         new_labels.append(cur_new_labels)
+    #
+    #     # Truncate sequences to max length as image embeddings can make the sequence longer
+    #     # 获取配置中的tokenizer_model_max_length参数，如果没有设置则默认为None
+    #     tokenizer_model_max_length = getattr(self.config, 'tokenizer_model_max_length', None)
+    #     # 如果tokenizer_model_max_length不为None，则对new_input_embeds和new_labels进行截断
+    #     if tokenizer_model_max_length is not None:
+    #         # 对new_input_embeds中的每个元素进行截断，只保留前tokenizer_model_max_length个元素
+    #         new_input_embeds = [x[:tokenizer_model_max_length] for x in new_input_embeds]
+    #         # 对new_labels中的每个元素进行截断，只保留前tokenizer_model_max_length个元素
+    #         new_labels = [x[:tokenizer_model_max_length] for x in new_labels]
+    #
+    #     # Combine them
+    #     # 计算输入嵌入序列的最大长度
+    #     max_len = max(x.shape[0] for x in new_input_embeds)
+    #     # 获取批量大小
+    #     batch_size = len(new_input_embeds)
+    #     # 初始化填充后的输入嵌入序列列表
+    #     new_input_embeds_padded = []
+    #     # 创建一个与最大长度相同，且所有元素都为IGNORE_INDEX的标签张量
+    #     new_labels_padded = torch.full((batch_size, max_len), IGNORE_INDEX, dtype=new_labels[0].dtype, device=new_labels[0].device)
+    #     # 创建一个全零的注意力掩码张量
+    #     attention_mask = torch.zeros((batch_size, max_len), dtype=attention_mask.dtype, device=attention_mask.device)
+    #     # 创建一个全零的位置ID张量
+    #     position_ids = torch.zeros((batch_size, max_len), dtype=position_ids.dtype, device=position_ids.device)
+    #
+    #     # 遍历新的输入嵌入和新的标签
+    #     for i, (cur_new_embed, cur_new_labels) in enumerate(zip(new_input_embeds, new_labels)):
+    #         # 获取当前嵌入的长度
+    #         cur_len = cur_new_embed.shape[0]
+    #         # 如果配置中的tokenizer_padding_side为'left'，则进行左填充
+    #         if getattr(self.config, 'tokenizer_padding_side', 'right') == "left":
+    #             # 创建一个全零张量，其形状为(max_len - cur_len, cur_new_embed.shape[1])，数据类型和设备与cur_new_embed相同
+    #             new_input_embeds_padded.append(torch.cat((
+    #                 torch.zeros((max_len - cur_len, cur_new_embed.shape[1]), dtype=cur_new_embed.dtype, device=cur_new_embed.device),
+    #                 cur_new_embed # 将当前嵌入追加到全零张量的右侧
+    #             ), dim=0))
+    #
+    #             # 如果当前嵌入长度大于0，则进行以下操作
+    #             if cur_len > 0:
+    #                 # 将新的标签填充到new_labels_padded的相应位置
+    #                 new_labels_padded[i, -cur_len:] = cur_new_labels
+    #                 # 更新attention_mask，将当前嵌入对应的部分设置为True
+    #                 attention_mask[i, -cur_len:] = True
+    #                 # 更新position_ids，生成一个从0到cur_len-1的张量，并将其填充到position_ids的相应位置
+    #                 position_ids[i, -cur_len:] = torch.arange(0, cur_len, dtype=position_ids.dtype, device=position_ids.device)
+    #         else:
+    #             # 如果配置中的tokenizer_padding_side不为'left'，则进行右填充
+    #             new_input_embeds_padded.append(torch.cat((
+    #                 cur_new_embed, # # 将当前嵌入追加到全零张量的左侧
+    #                 torch.zeros((max_len - cur_len, cur_new_embed.shape[1]), dtype=cur_new_embed.dtype, device=cur_new_embed.device)
+    #             ), dim=0))
+    #             # 如果当前嵌入长度大于0，则进行以下操作
+    #             if cur_len > 0:
+    #                 # 将新的标签填充到new_labels_padded的相应位置，从左侧开始填充
+    #                 new_labels_padded[i, :cur_len] = cur_new_labels
+    #                 # 更新attention_mask，将当前嵌入对应的部分设置为True，从左侧开始
+    #                 attention_mask[i, :cur_len] = True
+    #                 # 更新position_ids，生成一个从0到cur_len-1的张量，并将其填充到position_ids的相应位置，从左侧开始
+    #                 position_ids[i, :cur_len] = torch.arange(0, cur_len, dtype=position_ids.dtype, device=position_ids.device)
+    #
+    #     # 使用torch.stack函数将new_input_embeds_padded列表中的张量沿第0维堆叠起来，生成新的张量new_input_embeds
+    #     new_input_embeds = torch.stack(new_input_embeds_padded, dim=0)
+    #
+    #     # 如果_labels为None，则new_labels也设置为None；否则，将new_labels_padded赋值给new_labels
+    #     if _labels is None:
+    #         new_labels = None
+    #     else:
+    #         new_labels = new_labels_padded
+    #
+    #     # 如果_attention_mask为None，则attention_mask也设置为None；否则，将attention_mask转换为_attention_mask的数据类型
+    #     if _attention_mask is None:
+    #         attention_mask = None
+    #     else:
+    #         attention_mask = attention_mask.to(dtype=_attention_mask.dtype)
+    #     # 如果_position_ids为None，则position_ids也设置为None
+    #     if _position_ids is None:
+    #         position_ids = None
+    #     # 返回None, position_ids, attention_mask, past_key_values, new_input_embeds, new_labels
+    #     return None, position_ids, attention_mask, past_key_values, new_input_embeds, new_labels
+    #
 
     def prepare_inputs_labels_for_multimodal(
         self, input_ids, position_ids, attention_mask, past_key_values, labels,
