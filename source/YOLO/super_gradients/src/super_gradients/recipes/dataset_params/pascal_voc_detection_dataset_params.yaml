@@ -1,0 +1,51 @@
+train_dataset_params:
+  data_dir: ./data/pascal_voc/
+  input_dim: [320, 320]
+  transforms:
+    - DetectionPaddedRescale:
+        input_dim: ${dataset_params.train_dataset_params.input_dim}
+    - DetectionTargetsFormatTransform:
+        input_dim: ${dataset_params.train_dataset_params.input_dim}
+        output_format: LABEL_CXCYWH
+  images_dir: images
+  labels_dir: labels
+  class_inclusion_list:
+  max_num_samples:
+  download: True
+
+val_dataset_params:
+  data_dir: ./data/pascal_voc/
+  input_dim: [320, 320]
+  transforms:
+    - DetectionPaddedRescale:
+        input_dim: ${dataset_params.train_dataset_params.input_dim}
+    - DetectionTargetsFormatTransform:
+        input_dim: ${dataset_params.train_dataset_params.input_dim}
+        output_format: LABEL_CXCYWH
+  images_dir: images/test2007/
+  labels_dir: labels/test2007/
+  class_inclusion_list:
+  max_num_samples:
+  download: True
+
+
+train_dataloader_params:
+  shuffle: True
+  batch_size: 16
+  num_workers: 8
+  drop_last: True
+  pin_memory: True
+  worker_init_fn:
+    _target_: super_gradients.training.utils.utils.load_func
+    dotpath: super_gradients.training.datasets.datasets_utils.worker_init_reset_seed
+  collate_fn: DetectionCollateFN
+
+val_dataloader_params:
+  batch_size: 64
+  num_workers: 8
+  drop_last: False
+  pin_memory: True
+  collate_fn: DetectionCollateFN
+
+
+_convert_: all

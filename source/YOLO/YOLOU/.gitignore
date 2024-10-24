@@ -1,0 +1,4 @@
+*.pyc
+coco128/
+runs/
+weights/
