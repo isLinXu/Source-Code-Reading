@@ -390,28 +390,58 @@ class LLaVATrainer(Trainer):
         return self.optimizer
 
     def _save_checkpoint(self, model, trial, metrics=None):
+        """
+        在训练过程中保存模型检查点。
+
+        如果 'tune_mm_mlp_adapter' 参数设置为 True，则仅保存多模态 MLP 适配器的参数。
+        否则，使用 LLaVATrainer 超类的默认保存方法。
+
+        参数:
+            model (torch.nn.Module): 需要保存的模型。
+            trial (str): 当前调参试验的标识符。
+            metrics (dict, 可选): 模型达到的指标。默认为 None。
+        """
         if getattr(self.args, 'tune_mm_mlp_adapter', False):
+            # 从 Hugging Face Trainer 工具导入检查点目录前缀
             from transformers.trainer_utils import PREFIX_CHECKPOINT_DIR
             checkpoint_folder = f"{PREFIX_CHECKPOINT_DIR}-{self.state.global_step}"
 
+            # 获取当前试验的输出目录
             run_dir = self._get_output_dir(trial=trial)
             output_dir = os.path.join(run_dir, checkpoint_folder)
 
             # Only save Adapter
+            # 只保存适配器
             keys_to_match = ['mm_projector', 'vision_resampler']
             if getattr(self.args, "use_im_start_end", False):
                 keys_to_match.extend(['embed_tokens', 'embed_in'])
 
+            # 获取多模态适配器的状态字典
             weight_to_save = get_mm_adapter_state_maybe_zero_3(self.model.named_parameters(), keys_to_match)
 
+            # 如果在主进程中或未使用分布式训练，则保存适配器权重
             if self.args.local_rank == 0 or self.args.local_rank == -1:
                 self.model.config.save_pretrained(output_dir)
                 torch.save(weight_to_save, os.path.join(output_dir, f'mm_projector.bin'))
         else:
+            # 使用 LLaVATrainer 超类的默认 save_checkpoint 方法
             super(LLaVATrainer, self)._save_checkpoint(model, trial, metrics)
 
     def _save(self, output_dir: Optional[str] = None, state_dict=None):
+        """
+        保存模型到指定目录。
+
+        如果设置了'tune_mm_mlp_adapter'属性，则不执行保存操作。
+        否则，调用父类的_save方法进行保存。
+
+        参数:
+        output_dir (Optional[str]): 保存输出的目录路径。如果不需要保存到特定目录，可以不提供。
+        state_dict: 模型的状态字典，用于保存模型的参数。如果不需要指定状态字典，可以不提供。
+        """
+        # 检查是否设置了'tune_mm_mlp_adapter'属性
         if getattr(self.args, 'tune_mm_mlp_adapter', False):
+            # 如果设置了'tune_mm_mlp_adapter'，则不执行保存操作
             pass
         else:
+            # 如果没有设置'tune_mm_mlp_adapter'，则调用父类的_save方法进行保存
             super(LLaVATrainer, self)._save(output_dir, state_dict)
