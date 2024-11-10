@@ -92,7 +92,9 @@ except ImportError:
 
 class BaseModel(nn.Module):
     """The BaseModel class serves as a base class for all the models in the Ultralytics YOLO family."""
-
+    """
+    BaseModel类作为Ultralytics YOLO系列模型中所有模型的基类。
+    """
     def forward(self, x, *args, **kwargs):
         """
         Perform forward pass of the model for either training or inference.
@@ -106,10 +108,24 @@ class BaseModel(nn.Module):
 
         Returns:
             (torch.Tensor): Loss if x is a dict (training), or network predictions (inference).
+
+        执行模型的前向传播，用于训练或推理。
+
+        如果x是一个字典，计算并返回训练的损失。否则，返回推理的网络预测。
+
+        参数:
+            x (torch.Tensor | dict): 推理时的输入张量，或训练时包含图像张量和标签的字典。
+            *args (Any): 可变长度参数列表。
+            **kwargs (Any): 任意关键字参数。
+
+        返回:
+            (torch.Tensor): 如果x是字典（训练），则返回损失；如果是推理，则返回网络预测。
+
         """
+        # 用于训练和训练期间的验证情况。
         if isinstance(x, dict):  # for cases of training and validating while training.
-            return self.loss(x, *args, **kwargs)
-        return self.predict(x, *args, **kwargs)
+            return self.loss(x, *args, **kwargs) # 返回训练损失
+        return self.predict(x, *args, **kwargs)  # 返回推理预测
 
     def predict(self, x, profile=False, visualize=False, augment=False, embed=None):
         """
