@@ -10,30 +10,60 @@ from yolov6.utils.general import dist2bbox
 class Detect(nn.Module):
     export = False
     '''Efficient Decoupled Head for fusing anchor-base branches.
+    高效解耦头，用于融合基于锚框的分支。
     '''
     def __init__(self, num_classes=80, anchors=None, num_layers=3, inplace=True, head_layers=None, use_dfl=True, reg_max=16):  # detection layer
+        """初始化检测层。
+
+        参数:
+            num_classes (int): 类别数量。
+            anchors (list 或 tuple): 锚框参数。
+            num_layers (int): 检测层数量。
+            inplace (bool): 是否使用原地操作。
+            head_layers (list): 解耦头的层。
+            use_dfl (bool): 是否使用分布焦点损失。
+            reg_max (int): 回归的最大值。
+        """
         super().__init__()
+        # 确保head_layers不为None，这是模型头部层数的重要参数
         assert head_layers is not None
-        self.nc = num_classes  # number of classes
-        self.no = num_classes + 5  # number of outputs per anchor
-        self.nl = num_layers  # number of detection layers
+        # 初始化类别数量
+        self.nc = num_classes  # number of classes # 类别数量
+        # 计算每个锚框的输出数量，包括类别概率和边界框坐标数量
+        self.no = num_classes + 5  # number of outputs per anchor # 每个锚框的输出数量
+        # 初始化检测层数量
+        self.nl = num_layers  # number of detection layers # 检测层数量
+
+        # 根据anchors的类型，计算每个检测层的锚框数量
         if isinstance(anchors, (list, tuple)):
             self.na = len(anchors[0]) // 2
         else:
             self.na = anchors
+        # 初始化grid，用于存储每个检测层的网格信息
         self.grid = [torch.zeros(1)] * num_layers
+        # 设置先验概率，用于初始化分类分数和回归预测
         self.prior_prob = 1e-2
+        # 设置是否原地操作的标志
         self.inplace = inplace
+        # 根据检测层数量，设定每个层的步长
         stride = [8, 16, 32] if num_layers == 3 else [8, 16, 32, 64] # strides computed during build
+        # 将步长转化为tensor格式
         self.stride = torch.tensor(stride)
+        # 设置是否使用分布焦点损失的标志
         self.use_dfl = use_dfl
+        # 初始化reg_max，用于分布焦点损失的最大值
         self.reg_max = reg_max
+        # 初始化投影卷积层，用于分布焦点损失的计算
         self.proj_conv = nn.Conv2d(self.reg_max + 1, 1, 1, bias=False)
+        # 设置网格单元偏移量
         self.grid_cell_offset = 0.5
+        # 设置网格单元尺寸
         self.grid_cell_size = 5.0
+        # 初始化anchors，根据步长进行缩放
         self.anchors_init= ((torch.tensor(anchors) / self.stride[:,None])).reshape(self.nl, self.na, 2)
 
         # Init decouple head
+        # 初始化模型的各个模块列表
         self.stems = nn.ModuleList()
         self.cls_convs = nn.ModuleList()
         self.reg_convs = nn.ModuleList()
@@ -42,7 +72,9 @@ class Detect(nn.Module):
         self.cls_preds_ab = nn.ModuleList()
         self.reg_preds_ab = nn.ModuleList()
 
-        # Efficient decoupled head layers
+        # Efficient decoupled head layers         # 高效解耦头层
+        # 解释：下面的循环将根据head_layers中的顺序和数量，为每个模块列表添加相应的层。
+        # 这种解耦设计允许每个分支（分类、回归等）有独立的处理层，提高模型的灵活性和性能。
         for i in range(num_layers):
             idx = i*7
             self.stems.append(head_layers[idx])
@@ -54,40 +86,62 @@ class Detect(nn.Module):
             self.reg_preds_ab.append(head_layers[idx+6])
 
     def initialize_biases(self):
-
+        """
+        初始化模型中的偏置参数，以促进训练稳定性和性能。
+        此方法主要针对分类和回归预测层的偏置和权重进行初始化。
+        """
+        # 初始化分类预测卷积层的偏置和权重
         for conv in self.cls_preds:
+            # 计算并设置偏置参数
             b = conv.bias.view(-1, )
             b.data.fill_(-math.log((1 - self.prior_prob) / self.prior_prob))
             conv.bias = torch.nn.Parameter(b.view(-1), requires_grad=True)
+
+            # 初始化权重参数
             w = conv.weight
             w.data.fill_(0.)
             conv.weight = torch.nn.Parameter(w, requires_grad=True)
 
+        # 初始化另一组分类预测卷积层的偏置和权重
         for conv in self.cls_preds_ab:
+            # 计算并设置偏置参数
             b = conv.bias.view(-1, )
             b.data.fill_(-math.log((1 - self.prior_prob) / self.prior_prob))
             conv.bias = torch.nn.Parameter(b.view(-1), requires_grad=True)
+
+            # 初始化权重参数
             w = conv.weight
             w.data.fill_(0.)
             conv.weight = torch.nn.Parameter(w, requires_grad=True)
 
+        # 初始化回归预测卷积层的偏置和权重
         for conv in self.reg_preds:
+            # 计算并设置偏置参数
             b = conv.bias.view(-1, )
             b.data.fill_(1.0)
+
+            # 初始化权重参数
             conv.bias = torch.nn.Parameter(b.view(-1), requires_grad=True)
             w = conv.weight
             w.data.fill_(0.)
             conv.weight = torch.nn.Parameter(w, requires_grad=True)
 
+        # 初始化另一组回归预测卷积层的偏置和权重
         for conv in self.reg_preds_ab:
+            # 计算并设置偏置参数
             b = conv.bias.view(-1, )
             b.data.fill_(1.0)
             conv.bias = torch.nn.Parameter(b.view(-1), requires_grad=True)
+
+            # 初始化权重参数
             w = conv.weight
             w.data.fill_(0.)
             conv.weight = torch.nn.Parameter(w, requires_grad=True)
 
+        # 初始化投影参数，用于回归预测中的距离计算
         self.proj = nn.Parameter(torch.linspace(0, self.reg_max, self.reg_max + 1), requires_grad=False)
+
+        # 初始化投影卷积权重参数，用于将投影参数应用于卷积操作
         self.proj_conv.weight = nn.Parameter(self.proj.view([1, self.reg_max + 1, 1, 1]).clone().detach(),
                                                    requires_grad=False)
 

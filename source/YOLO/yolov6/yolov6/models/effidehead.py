@@ -12,13 +12,26 @@ class Detect(nn.Module):
     '''Efficient Decoupled Head
     With hardware-aware degisn, the decoupled head is optimized with
     hybridchannels methods.
+    高效解耦头
+    通过硬件感知设计，解耦头使用混合通道方法进行了优化。
     '''
     def __init__(self, num_classes=80, num_layers=3, inplace=True, head_layers=None, use_dfl=True, reg_max=16):  # detection layer
+        """
+        初始化检测层。
+
+        参数:
+            num_classes (int): 类别数量。
+            num_layers (int): 检测层数量。
+            inplace (bool): 是否进行原地操作。
+            head_layers (list): 解耦头的层列表。
+            use_dfl (bool): 是否使用分布焦点损失。
+            reg_max (int): 回归的最大值。
+        """
         super().__init__()
         assert head_layers is not None
-        self.nc = num_classes  # number of classes
-        self.no = num_classes + 5  # number of outputs per anchor
-        self.nl = num_layers  # number of detection layers
+        self.nc = num_classes  # number of classes # 类别数
+        self.no = num_classes + 5  # number of outputs per anchor # 每个锚点的输出数量
+        self.nl = num_layers  # number of detection layers # 检测层数量
         self.grid = [torch.zeros(1)] * num_layers
         self.prior_prob = 1e-2
         self.inplace = inplace
@@ -30,6 +43,7 @@ class Detect(nn.Module):
         self.grid_cell_offset = 0.5
         self.grid_cell_size = 5.0
 
+        # 初始化解耦头
         # Init decouple head
         self.stems = nn.ModuleList()
         self.cls_convs = nn.ModuleList()
@@ -37,6 +51,7 @@ class Detect(nn.Module):
         self.cls_preds = nn.ModuleList()
         self.reg_preds = nn.ModuleList()
 
+        # 高效解耦头层
         # Efficient decoupled head layers
         for i in range(num_layers):
             idx = i*5
@@ -47,29 +62,55 @@ class Detect(nn.Module):
             self.reg_preds.append(head_layers[idx+4])
 
     def initialize_biases(self):
-
+        """
+        初始化模型的偏置参数，以帮助模型在训练初期更好地收敛。
+        此方法主要针对分类预测(cls_preds)和回归预测(reg_preds)的卷积层进行偏置和权重的初始化。
+        """
+        # 针对分类预测的卷积层进行初始化
         for conv in self.cls_preds:
+            # 计算分类预测的偏置项，并使用prior_prob来反映类别不平衡的情况
             b = conv.bias.view(-1, )
             b.data.fill_(-math.log((1 - self.prior_prob) / self.prior_prob))
             conv.bias = torch.nn.Parameter(b.view(-1), requires_grad=True)
+
+            # 初始化分类预测的权重为0
             w = conv.weight
             w.data.fill_(0.)
             conv.weight = torch.nn.Parameter(w, requires_grad=True)
 
+        # 针对回归预测的卷积层进行初始化
         for conv in self.reg_preds:
+            # 初始化回归预测的偏置项，设置初始值为1.0，有助于模型学习回归目标
             b = conv.bias.view(-1, )
             b.data.fill_(1.0)
             conv.bias = torch.nn.Parameter(b.view(-1), requires_grad=True)
+
+            # 初始化回归预测的权重为0
             w = conv.weight
             w.data.fill_(0.)
             conv.weight = torch.nn.Parameter(w, requires_grad=True)
 
+        # 初始化投影参数，用于回归预测中的距离计算，不参与梯度更新
         self.proj = nn.Parameter(torch.linspace(0, self.reg_max, self.reg_max + 1), requires_grad=False)
+
+        # 初始化投影卷积权重，同样不参与梯度更新
         self.proj_conv.weight = nn.Parameter(self.proj.view([1, self.reg_max + 1, 1, 1]).clone().detach(),
                                                    requires_grad=False)
 
     def forward(self, x):
+        """
+        实现前向传播过程，根据是否处于训练模式执行不同的逻辑。
+
+        参数:
+        - x: 输入数据，可以是单个张量或张量列表。
+
+        返回:
+        - x: 经过处理后的特征图。
+        - cls_score_list: 分类得分列表。
+        - reg_distri_list: 回归分布列表。
+        """
         if self.training:
+            # 训练模式下，处理每个输入张量，提取分类和回归特征，并进行相应的预测。
             cls_score_list = []
             reg_distri_list = []
 
@@ -91,6 +132,7 @@ class Detect(nn.Module):
 
             return x, cls_score_list, reg_distri_list
         else:
+            # 非训练模式下，执行类似的特征提取和预测过程，但根据模型的导出状态和是否使用DFl（分布 focal loss）进行调整。
             cls_score_list = []
             reg_dist_list = []
 
@@ -121,6 +163,7 @@ class Detect(nn.Module):
             if self.export:
                 return tuple(torch.cat([cls, reg], 1) for cls, reg in zip(cls_score_list, reg_dist_list))
 
+            # 生成锚点和步长张量，用于将回归分布转换为实际边界框。
             cls_score_list = torch.cat(cls_score_list, axis=-1).permute(0, 2, 1)
             reg_dist_list = torch.cat(reg_dist_list, axis=-1).permute(0, 2, 1)
 
@@ -140,9 +183,26 @@ class Detect(nn.Module):
 
 
 def build_effidehead_layer(channels_list, num_anchors, num_classes, reg_max=16, num_layers=3):
+    """
+    构建EffideHead层。
 
+    EffideHead是一种高效的检测头结构，用于目标检测任务。本函数根据给定的通道列表、锚点数、类别数等参数，
+    构建一系列卷积层和预测层，用于分类和回归任务。
+
+    参数:
+    - channels_list: 一个列表，包含每个层的通道数。
+    - num_anchors: 锚点的数量。
+    - num_classes: 类别的数量。
+    - reg_max: 回归的最大值，默认为16。
+    - num_layers: 层数的数量，默认为3。
+
+    返回:
+    - head_layers: 一个Sequential模块，包含构建的EffideHead层。
+    """
+    # 根据层数选择通道索引列表
     chx = [6, 8, 10] if num_layers == 3 else [8, 9, 10, 11]
 
+    # 初始化头部层的Sequential模块
     head_layers = nn.Sequential(
         # stem0
         ConvBNSiLU(
@@ -244,7 +304,7 @@ def build_effidehead_layer(channels_list, num_anchors, num_classes, reg_max=16, 
             kernel_size=1
         )
     )
-
+    # 如果层数为4，则添加第四个层级的模块
     if num_layers == 4:
         head_layers.add_module('stem3',
             # stem3
@@ -289,5 +349,5 @@ def build_effidehead_layer(channels_list, num_anchors, num_classes, reg_max=16, 
                 kernel_size=1
             )
         )
-
+    # 返回构建的头部层
     return head_layers
