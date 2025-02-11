@@ -206,36 +206,77 @@ def run(  # 定义run函数
 
 def parse_opt():
     """Parses command line arguments for YOLOv5 inference settings including model, source, device, and image size."""
-    parser = argparse.ArgumentParser()
+    # 解析命令行参数，用于YOLOv5推理设置，包括模型、源、设备和图像大小
+
+    parser = argparse.ArgumentParser()  # 创建一个解析器对象
     parser.add_argument("--weights", nargs="+", type=str, default=ROOT / "yolov5s-cls.pt", help="model path(s)")
+    # 添加参数 --weights，接收一个或多个字符串，默认值为 yolov5s-cls.pt 模型路径
+
     parser.add_argument("--source", type=str, default=ROOT / "data/images", help="file/dir/URL/glob/screen/0(webcam)")
+    # 添加参数 --source，接收一个字符串，默认值为数据图像路径
+
     parser.add_argument("--data", type=str, default=ROOT / "data/coco128.yaml", help="(optional) dataset.yaml path")
+    # 添加参数 --data，接收一个字符串，默认值为 coco128.yaml 数据集路径
+
     parser.add_argument("--imgsz", "--img", "--img-size", nargs="+", type=int, default=[224], help="inference size h,w")
+    # 添加参数 --imgsz，接收一个或多个整数，默认值为 [224]，表示推理图像的高度和宽度
+
     parser.add_argument("--device", default="", help="cuda device, i.e. 0 or 0,1,2,3 or cpu")
+    # 添加参数 --device，接收一个字符串，表示使用的CUDA设备，默认值为空
+
     parser.add_argument("--view-img", action="store_true", help="show results")
+    # 添加参数 --view-img，若存在则为True，表示显示结果
+
     parser.add_argument("--save-txt", action="store_true", help="save results to *.txt")
+    # 添加参数 --save-txt，若存在则为True，表示将结果保存到 *.txt 文件
+
     parser.add_argument("--nosave", action="store_true", help="do not save images/videos")
+    # 添加参数 --nosave，若存在则为True，表示不保存图像/视频
+
     parser.add_argument("--augment", action="store_true", help="augmented inference")
+    # 添加参数 --augment，若存在则为True，表示进行增强推理
+
     parser.add_argument("--visualize", action="store_true", help="visualize features")
+    # 添加参数 --visualize，若存在则为True，表示可视化特征
+
     parser.add_argument("--update", action="store_true", help="update all models")
+    # 添加参数 --update，若存在则为True，表示更新所有模型
+
     parser.add_argument("--project", default=ROOT / "runs/predict-cls", help="save results to project/name")
+    # 添加参数 --project，接收一个字符串，默认值为 runs/predict-cls，表示保存结果的项目名称
+
     parser.add_argument("--name", default="exp", help="save results to project/name")
+    # 添加参数 --name，接收一个字符串，默认值为 exp，表示保存结果的名称
+
     parser.add_argument("--exist-ok", action="store_true", help="existing project/name ok, do not increment")
+    # 添加参数 --exist-ok，若存在则为True，表示允许使用已存在的项目/名称，不进行递增
+
     parser.add_argument("--half", action="store_true", help="use FP16 half-precision inference")
+    # 添加参数 --half，若存在则为True，表示使用FP16半精度推理
+
     parser.add_argument("--dnn", action="store_true", help="use OpenCV DNN for ONNX inference")
+    # 添加参数 --dnn，若存在则为True，表示使用OpenCV DNN进行ONNX推理
+
     parser.add_argument("--vid-stride", type=int, default=1, help="video frame-rate stride")
-    opt = parser.parse_args()
+    # 添加参数 --vid-stride，接收一个整数，默认值为1，表示视频帧率步幅
+
+    opt = parser.parse_args()  # 解析命令行参数并返回结果
+
     opt.imgsz *= 2 if len(opt.imgsz) == 1 else 1  # expand
-    print_args(vars(opt))
-    return opt
+    # 如果图像大小参数只有一个值，则将其扩展为两个相同的值
+
+    print_args(vars(opt))  # 打印解析后的参数
+    return opt  # 返回解析后的参数对象
 
 
 def main(opt):
     """Executes YOLOv5 model inference with options for ONNX DNN and video frame-rate stride adjustments."""
-    check_requirements(ROOT / "requirements.txt", exclude=("tensorboard", "thop"))
-    run(**vars(opt))
+    # 执行YOLOv5模型推理，支持ONNX DNN和视频帧率步幅调整
+
+    check_requirements(ROOT / "requirements.txt", exclude=("tensorboard", "thop"))  # 检查依赖项
+    run(**vars(opt))  # 运行推理，传入解析后的参数
 
 
 if __name__ == "__main__":
-    opt = parse_opt()
-    main(opt)
+    opt = parse_opt()  # 解析命令行参数
+    main(opt)  # 调用主函数执行推理
