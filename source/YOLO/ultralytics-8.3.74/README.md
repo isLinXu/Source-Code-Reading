@@ -281,3 +281,22 @@ For Ultralytics bug reports and feature requests please visit [GitHub Issues](ht
   <img src="https://github.com/ultralytics/assets/raw/main/social/logo-transparent.png" width="3%" alt="space">
   <a href="https://discord.com/invite/ultralytics"><img src="https://github.com/ultralytics/assets/raw/main/social/logo-social-discord.png" width="3%" alt="Ultralytics Discord"></a>
 </div>
+
+%% 典型工作流程
+sequenceDiagram
+    用户->>+train.py: 启动训练
+    train.py->>+数据加载: 读取数据集
+    数据加载-->>-train.py: 返回DataLoader
+    train.py->>+模型初始化: 创建YOLO模型
+    模型初始化-->>-train.py: 返回model实例
+    train.py->>+优化器: 配置训练参数
+    loop 每个epoch
+        train.py->>+训练循环: 前向传播/反向传播
+        训练循环-->>-train.py: 返回损失值
+        train.py->>+验证集: 评估模型
+        验证集-->>-train.py: 返回mAP指标
+    end
+    train.py->>+export.py: 导出训练模型
+    export.py-->>-用户: 生成部署格式文件
+    用户->>+predict.py: 加载模型推理
+    predict.py-->>-用户: 返回检测结果
