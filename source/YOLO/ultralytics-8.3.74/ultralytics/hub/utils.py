@@ -167,80 +167,79 @@ def smart_request(method, url, retry=3, timeout=30, thread=True, code=-1, verbos
         return func(*args, **kwargs)
 
 
-class Events:
+class Events:  # 定义Events类，用于收集匿名事件分析
     """
     A class for collecting anonymous event analytics. Event analytics are enabled when sync=True in settings and
-    disabled when sync=False. Run 'yolo settings' to see and update settings.
+    disabled when sync=False. Run 'yolo settings' to see and update settings.  # 用于收集匿名事件分析的类。当设置sync=True时启用事件分析，sync=False时禁用。运行'yolo settings'查看和更新设置。
 
     Attributes:
-        url (str): The URL to send anonymous events.
-        rate_limit (float): The rate limit in seconds for sending events.
-        metadata (dict): A dictionary containing metadata about the environment.
-        enabled (bool): A flag to enable or disable Events based on certain conditions.
+        url (str): The URL to send anonymous events.  # 发送匿名事件的URL
+        rate_limit (float): The rate limit in seconds for sending events.  # 发送事件的速率限制（秒）
+        metadata (dict): A dictionary containing metadata about the environment.  # 包含环境元数据的字典
+        enabled (bool): A flag to enable or disable Events based on certain conditions.  # 根据特定条件启用或禁用事件的标志
     """
 
-    url = "https://www.google-analytics.com/mp/collect?measurement_id=G-X8NCJYTQXM&api_secret=QLQrATrNSwGRFRLE-cbHJw"
+    url = "https://www.google-analytics.com/mp/collect?measurement_id=G-X8NCJYTQXM&api_secret=QLQrATrNSwGRFRLE-cbHJw"  # 事件收集的URL
 
-    def __init__(self):
-        """Initializes the Events object with default values for events, rate_limit, and metadata."""
-        self.events = []  # events list
-        self.rate_limit = 30.0  # rate limit (seconds)
-        self.t = 0.0  # rate limit timer (seconds)
-        self.metadata = {
-            "cli": Path(ARGV[0]).name == "yolo",
-            "install": "git" if IS_GIT_DIR else "pip" if IS_PIP_PACKAGE else "other",
-            "python": ".".join(platform.python_version_tuple()[:2]),  # i.e. 3.10
-            "version": __version__,
-            "env": ENVIRONMENT,
-            "session_id": round(random.random() * 1e15),
-            "engagement_time_msec": 1000,
+    def __init__(self):  # 初始化Events对象
+        """Initializes the Events object with default values for events, rate_limit, and metadata.  # 用默认值初始化Events对象的事件、速率限制和元数据。"""
+        self.events = []  # events list  # 事件列表
+        self.rate_limit = 30.0  # rate limit (seconds)  # 速率限制（秒）
+        self.t = 0.0  # rate limit timer (seconds)  # 速率限制计时器（秒）
+        self.metadata = {  # 元数据字典
+            "cli": Path(ARGV[0]).name == "yolo",  # CLI名称是否为'yolo'
+            "install": "git" if IS_GIT_DIR else "pip" if IS_PIP_PACKAGE else "other",  # 安装方式
+            "python": ".".join(platform.python_version_tuple()[:2]),  # Python版本，例如3.10
+            "version": __version__,  # 当前版本
+            "env": ENVIRONMENT,  # 环境
+            "session_id": round(random.random() * 1e15),  # 会话ID
+            "engagement_time_msec": 1000,  # 参与时间（毫秒）
         }
-        self.enabled = (
-            SETTINGS["sync"]
-            and RANK in {-1, 0}
-            and not TESTS_RUNNING
-            and ONLINE
-            and (IS_PIP_PACKAGE or get_git_origin_url() == "https://github.com/ultralytics/ultralytics.git")
+        self.enabled = (  # 根据条件启用或禁用事件
+            SETTINGS["sync"]  # 是否同步
+            and RANK in {-1, 0}  # 排名条件
+            and not TESTS_RUNNING  # 不是在测试运行中
+            and ONLINE  # 在线状态
+            and (IS_PIP_PACKAGE or get_git_origin_url() == "https://github.com/ultralytics/ultralytics.git")  # 安装来源
         )
 
-    def __call__(self, cfg):
+    def __call__(self, cfg):  # 定义可调用方法
         """
-        Attempts to add a new event to the events list and send events if the rate limit is reached.
+        Attempts to add a new event to the events list and send events if the rate limit is reached.  # 尝试向事件列表添加新事件，并在达到速率限制时发送事件。
 
         Args:
-            cfg (IterableSimpleNamespace): The configuration object containing mode and task information.
+            cfg (IterableSimpleNamespace): The configuration object containing mode and task information.  # 包含模式和任务信息的配置对象。
         """
-        if not self.enabled:
-            # Events disabled, do nothing
+        if not self.enabled:  # 如果事件未启用
+            # Events disabled, do nothing  # 事件被禁用，不执行任何操作
             return
 
         # Attempt to add to events
-        if len(self.events) < 25:  # Events list limited to 25 events (drop any events past this)
-            params = {
-                **self.metadata,
-                "task": cfg.task,
-                "model": cfg.model if cfg.model in GITHUB_ASSETS_NAMES else "custom",
+        if len(self.events) < 25:  # 事件列表限制为25个事件（丢弃超过此限制的事件）
+            params = {  # 事件参数
+                **self.metadata,  # 合并元数据
+                "task": cfg.task,  # 任务信息
+                "model": cfg.model if cfg.model in GITHUB_ASSETS_NAMES else "custom",  # 模型信息
             }
-            if cfg.mode == "export":
-                params["format"] = cfg.format
-            self.events.append({"name": cfg.mode, "params": params})
+            if cfg.mode == "export":  # 如果模式为'export'
+                params["format"] = cfg.format  # 添加格式参数
+            self.events.append({"name": cfg.mode, "params": params})  # 将事件添加到列表
 
         # Check rate limit
-        t = time.time()
-        if (t - self.t) < self.rate_limit:
-            # Time is under rate limiter, wait to send
+        t = time.time()  # 获取当前时间
+        if (t - self.t) < self.rate_limit:  # 如果时间在速率限制内
+            # Time is under rate limiter, wait to send  # 时间在速率限制内，等待发送
             return
 
         # Time is over rate limiter, send now
-        data = {"client_id": SETTINGS["uuid"], "events": self.events}  # SHA-256 anonymized UUID hash and events list
+        data = {"client_id": SETTINGS["uuid"], "events": self.events}  # SHA-256匿名UUID哈希和事件列表
 
-        # POST equivalent to requests.post(self.url, json=data)
-        smart_request("post", self.url, json=data, retry=0, verbose=False)
+        # POST equivalent to requests.post(self.url, json=data)  # 发送POST请求
+        smart_request("post", self.url, json=data, retry=0, verbose=False)  # 发送事件数据
 
         # Reset events and rate limit timer
-        self.events = []
-        self.t = t
-
+        self.events = []  # 重置事件列表
+        self.t = t  # 重置速率限制计时器
 
 # Run below code on hub/utils init -------------------------------------------------------------------------------------
-events = Events()
+events = Events()  # 初始化事件对象
