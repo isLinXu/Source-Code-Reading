@@ -1,0 +1,10 @@
+antlr4-python3-runtime==4.11.0
+datasets
+einops
+jsonlines
+lagent @ git+https://github.com/InternLM/lagent@main
+lmdeploy>=0.2.2
+numpy
+pebble
+sympy==1.12
+tqdm

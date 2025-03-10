@@ -1,0 +1,44 @@
+name: 🚀 Feature request
+description: Suggest an idea for this project
+labels: ["enhancement"]
+title: "[Feature] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Note
+        For general usage questions or idea discussions, please post it to our [**Forum**](https://github.com/InternLM/InternLM/discussions)
+        Please fill in as **much** of the following form as you're able to. **The clearer the description, the shorter it will take to solve it.**
+
+  - type: markdown
+    attributes:
+      value: |
+        If you have already implemented the feature, we strongly appreciate you creating a new PR!
+
+  - type: textarea
+    id: describe
+    validations:
+      required: true
+    attributes:
+      label: Describe the feature
+      description: |
+        What kind of feature do you want this repository to add. If there is an official code release or third-party implementation, please also provide the information here, which would be very helpful.
+      placeholder: |
+        A clear and concise description of the motivation of the feature.
+        Ex1. It is inconvenient when \[....\].
+        Ex2. There is a recent paper \[....\], which is very helpful for \[....\].
+
+  - type: checkboxes
+    id: pr
+    attributes:
+      label: Will you implement it?
+      options:
+        - label: I would like to implement this feature and create a PR!
+
+  - type: markdown
+    attributes:
+      value: |
+        ## Acknowledgement
+        Thanks for taking the time to fill out this report.
+
+        If you have already identified the reason, we strongly appreciate you creating a new PR to implement it [**here**](https://github.com/InternLM/InternLM/pulls)!

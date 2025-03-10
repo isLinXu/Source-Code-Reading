@@ -1,0 +1,26 @@
+name: lint-check
+
+on:
+  push:
+  pull_request:
+    branches:
+      - "main"
+      - "develop"
+
+jobs:
+  # lint check can be auto-executed by the workflow
+  lint-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: lint-flake8
+        run: |
+          pip install flake8
+          FLAKE_DISABLE_LIST="F403,F405,W504,W503,E203"
+          flake8 --max-line-length=120 --ignore=$FLAKE_DISABLE_LIST ./chat/web_demo.py
+
+      - name: lint-isort
+        run: |
+          pip install isort==5.12.0
+          isort --check --profile=black .

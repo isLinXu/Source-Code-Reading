@@ -1,0 +1,32 @@
+area/docs:
+  - docs/**/*
+
+area/testing:
+  - tests/**/*
+
+area/setup:
+  - setup.py
+  - requirements*
+  - MANIFEST.in
+
+area/housekeeping:
+  - .github/**/*
+  - ./.gitignore
+  - ./*.yaml
+  - ./*.yml
+
+area/cicd:
+  - .github/workflows/**/*
+
+area/docker:
+  - Dockerfiles/**/*
+  - ./.dockerignore
+
+area/core:
+  - finetuner/**/*
+
+area/entrypoint:
+  - finetuner/__init__.py
+
+area/client:
+  - finetuner/client/**/*
