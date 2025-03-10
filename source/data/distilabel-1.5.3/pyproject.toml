@@ -1,0 +1,128 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "distilabel"
+description = "Distilabel is an AI Feedback (AIF) framework for building datasets with and for LLMs."
+readme = "README.md"
+requires-python = ">=3.9"
+license = "Apache-2.0"
+keywords = ["llm", "annotation", "alignment", "synthetic", "data", "rlaif"]
+authors = [{ name = "Argilla", email = "admin@argilla.io" }]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+]
+dependencies = [
+    # Bump `datasets` to support `load_dataset` from cache
+    # Ref https://github.com/huggingface/datasets/releases/tag/2.16.0
+    "datasets >= 2.16.0",
+    "httpx >= 0.25.2",
+    "importlib-resources >= 6.1.1; python_version < '3.9'",
+    "Jinja2 >= 3.1.2",
+    "multiprocess >= 0.70",
+    "nest-asyncio >= 1.6.0",
+    "networkx >= 3.0",
+    "pydantic >= 2.0",
+    "rich >= 13.5.0",
+    "scipy >= 1.10.0",
+    "typer >= 0.9.0",
+    "tblib >= 3.0.0",
+    "orjson >= 3.10.0",
+    "universal_pathlib >= 0.2.2",
+    "portalocker >= 2.8.2",
+    "setuptools",
+]
+dynamic = ["version"]
+
+[project.scripts]
+distilabel = "distilabel.cli.app:app"
+
+[project.entry-points."mkdocs.plugins"]
+"distilabel/components-gallery" = "distilabel.utils.mkdocs.components_gallery:ComponentsGalleryPlugin"
+
+[project.optional-dependencies]
+dev = ["ruff == 0.8.1", "pre-commit >= 3.5.0"]
+docs = [
+    "mkdocs-material >=9.5.17",
+    "mkdocstrings[python] >= 0.24.0",
+    "mkdocs-literate-nav >= 0.6.1",
+    "mkdocs-section-index >= 0.3.8",
+    "mkdocs-gen-files >= 0.5.0",
+    "mkdocs-glightbox >= 0.4.0",
+    "material-plausible-plugin>=0.2.0",
+    "mike >= 2.0.0",
+    "Pillow >= 9.5.0",
+    "CairoSVG >= 2.7.1",
+    "mknotebooks >= 0.8.0",
+    "pandas >= 2.0",
+    "tabulate>=0.9.0",
+]
+tests = [
+    "pytest >= 7.4.0",
+    "pytest-asyncio",
+    "nest-asyncio",
+    "pytest-timeout",
+    "pytest-codspeed",
+]
+
+# Optional LLMs, integrations, etc
+anthropic = ["anthropic >= 0.20.0"]
+argilla = ["argilla >= 2.0.0", "ipython"]
+cohere = ["cohere >= 5.2.0"]
+groq = ["groq >= 0.4.1"]
+hf-inference-endpoints = ["huggingface_hub >= 0.22.0"]
+hf-transformers = ["transformers >= 4.34.1", "torch >= 2.0.0"]
+instructor = ["instructor >= 1.2.3"]
+litellm = ["litellm >= 1.30.0"]
+llama-cpp = ["llama-cpp-python >= 0.2.0"]
+mistralai = ["mistralai >= 1.0.0"]
+ollama = ["ollama >= 0.1.7"]
+openai = ["openai >= 1.0.0"]
+outlines = ["outlines >= 0.0.40", "numba >= 0.54.0"]
+ray = ["ray[default] >= 2.31.0"]
+vertexai = ["google-cloud-aiplatform >= 1.38.0"]
+vllm = [
+    "vllm >= 0.5.3",
+    "filelock >= 3.13.4"
+]
+sentence-transformers = ["sentence-transformers >= 3.0.0"]
+faiss-cpu = ["faiss-cpu >= 1.8.0"]
+faiss-gpu = ["faiss-gpu >= 1.7.2"]
+text-clustering = [
+    "umap-learn >= 0.5.6",
+    "scikit-learn >= 1.4.1",
+    "matplotlib >= 3.8.3",   # For the figure (even though it's optional)
+]
+mlx = ["mlx >= 0.21.0", "mlx-lm >= 0.21.0, < 0.22.0"]
+vision = ["Pillow >= 10.3.0"]  # To work with images.
+
+# minhash
+minhash = ["datasketch >= 1.6.5", "nltk>3.8.1"]
+
+[project.urls]
+Documentation = "https://distilabel.argilla.io/"
+Issues = "https://github.com/argilla/distilabel/issues"
+Source = "https://github.com/argilla/distilabel"
+
+[tool.hatch.version]
+path = "src/distilabel/__init__.py"
+
+[tool.ruff]
+line-length = 88
+exclude = ["docs"]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "C", "B"]
+ignore = ["E501", "B905", "B008"]
+extend-select = ["RUF022"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
