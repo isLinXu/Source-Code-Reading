@@ -215,29 +215,42 @@ class C2(nn.Module):
 
 class C2f(nn.Module):
     """Faster Implementation of CSP Bottleneck with 2 convolutions."""
+    # 更快的CSP瓶颈实现，包含两个卷积层。
 
     def __init__(self, c1, c2, n=1, shortcut=False, g=1, e=0.5):
         """Initialize CSP bottleneck layer with two convolutions with arguments ch_in, ch_out, number, shortcut, groups,
         expansion.
         """
+        # 初始化CSP瓶颈层，包含两个卷积，参数包括输入通道数ch_in，输出通道数ch_out，数量number，shortcut，groups和扩展比例。
         super().__init__()
         self.c = int(c2 * e)  # hidden channels
+        # 隐藏通道数，等于输出通道数c2乘以扩展比例e。
         self.cv1 = Conv(c1, 2 * self.c, 1, 1)
+        # 第一个卷积层，输入通道为c1，输出通道为2 * self.c，卷积核大小为1x1，步幅为1。
         self.cv2 = Conv((2 + n) * self.c, c2, 1)  # optional act=FReLU(c2)
+        # 第二个卷积层，输入通道为(2 + n) * self.c，输出通道为c2，卷积核大小为1x1。
         self.m = nn.ModuleList(Bottleneck(self.c, self.c, shortcut, g, k=((3, 3), (3, 3)), e=1.0) for _ in range(n))
+        # 创建一个模块列表，包含n个Bottleneck模块，每个模块的输入和输出通道数均为self.c，shortcut，g，卷积核大小为(3, 3)，扩展比例为1.0。
 
     def forward(self, x):
         """Forward pass through C2f layer."""
+        # 通过C2f层的前向传播。
         y = list(self.cv1(x).chunk(2, 1))
+        # 使用chunk将cv1的输出分成两个部分，并转换为列表。
         y.extend(m(y[-1]) for m in self.m)
+        # 将最后一个部分y[-1]传入每个Bottleneck模块，并扩展到y列表中。
         return self.cv2(torch.cat(y, 1))
+        # 将y列表中的所有部分拼接后，通过第二个卷积层cv2进行输出。
 
     def forward_split(self, x):
         """Forward pass using split() instead of chunk()."""
+        # 使用split()而不是chunk()进行前向传播。
         y = list(self.cv1(x).split((self.c, self.c), 1))
+        # 使用split将cv1的输出分成两个部分，大小为(self.c, self.c)，并转换为列表。
         y.extend(m(y[-1]) for m in self.m)
+        # 将最后一个部分y[-1]传入每个Bottleneck模块，并扩展到y列表中。
         return self.cv2(torch.cat(y, 1))
-
+        # 将y列表中的所有部分拼接后，通过第二个卷积层cv2进行输出。
 
 class C3(nn.Module):
     """CSP Bottleneck with 3 convolutions."""
@@ -759,14 +772,18 @@ class CIB(nn.Module):
 
 class C2fCIB(C2f):
     """Faster Implementation of CSP Bottleneck with 2 convolutions."""
+    # 更快的CSP瓶颈实现，包含两个卷积层。
 
     def __init__(self, c1, c2, n=1, shortcut=False, lk=False, g=1, e=0.5):
         """Initialize CSP bottleneck layer with two convolutions with arguments ch_in, ch_out, number, shortcut, groups,
         expansion.
         """
+        # 使用两个卷积层初始化CSP瓶颈层，参数包括输入通道数ch_in，输出通道数ch_out，数量number，shortcut，groups和扩展e。
         super().__init__(c1, c2, n, shortcut, g, e)
+        # 调用父类C2f的初始化方法，传入输入通道数c1，输出通道数c2，数量n，shortcut，groups和扩展e。
+        
         self.m = nn.ModuleList(CIB(self.c, self.c, shortcut, e=1.0, lk=lk) for _ in range(n))
-
+        # 创建一个ModuleList，包含n个CIB模块，每个模块的输入和输出通道数均为self.c，shortcut和扩展e为1.0，lk为传入参数lk。
 
 class Attention(nn.Module):
     def __init__(self, dim, num_heads=8,
@@ -797,31 +814,51 @@ class Attention(nn.Module):
         return x
 
 class PSA(nn.Module):
+    # 定义PSA类，继承自nn.Module。
 
     def __init__(self, c1, c2, e=0.5):
         super().__init__()
+        # 调用父类的初始化方法。
+        
         assert(c1 == c2)
+        # 确保输入通道数c1和输出通道数c2相等。
+        
         self.c = int(c1 * e)
+        # 计算并存储缩小后的通道数self.c，等于c1乘以扩展因子e。
+        
         self.cv1 = Conv(c1, 2 * self.c, 1, 1)
+        # 创建第一个卷积层cv1，将输入通道数c1转换为2倍的self.c，卷积核大小为1，步幅为1。
+        
         self.cv2 = Conv(2 * self.c, c1, 1)
+        # 创建第二个卷积层cv2，将2倍的self.c转换回c1，卷积核大小为1。
         
         self.attn = Attention(self.c, attn_ratio=0.5, num_heads=self.c // 64)
+        # 创建注意力机制模块attn，输入通道数为self.c，注意力比例为0.5，头数为self.c // 64。
+        
         self.ffn = nn.Sequential(
             Conv(self.c, self.c*2, 1),
             Conv(self.c*2, self.c, 1, act=False)
         )
-        
+        # 创建前馈神经网络ffn，由两个卷积层组成，第一个将self.c扩展为2倍，第二个将其缩回self.c，且不使用激活函数。
+
     def forward(self, x):
         a, b = self.cv1(x).split((self.c, self.c), dim=1)
+        # 将输入x通过卷积层cv1处理后，分割为两个部分a和b，分别为self.c通道。
+        
         b = b + self.attn(b)
+        # 将b与注意力机制的输出相加。
+        
         b = b + self.ffn(b)
+        # 将b与前馈神经网络的输出相加。
+        
         return self.cv2(torch.cat((a, b), 1))
+        # 将a和b在通道维度上拼接后，通过卷积层cv2输出结果。
 
-class SCDown(nn.Module):
-    def __init__(self, c1, c2, k, s):
-        super().__init__()
-        self.cv1 = Conv(c1, c2, 1, 1)
-        self.cv2 = Conv(c2, c2, k=k, s=s, g=c2, act=False)
+class SCDown(nn.Module):  # 定义一个名为 SCDown 的类，继承自 nn.Module
+    def __init__(self, c1, c2, k, s):  # 初始化方法，接收输入通道数 c1，输出通道数 c2，卷积核大小 k，步幅 s
+        super().__init__()  # 调用父类的初始化方法
+        self.cv1 = Conv(c1, c2, 1, 1)  # 定义第一个卷积层 cv1，输入通道 c1，输出通道 c2，卷积核大小为 1，步幅为 1
+        self.cv2 = Conv(c2, c2, k=k, s=s, g=c2, act=False)  # 定义第二个卷积层 cv2，输入输出通道均为 c2，卷积核大小为 k，步幅为 s，分组卷积数为 c2，激活函数为 False
 
-    def forward(self, x):
-        return self.cv2(self.cv1(x))
+    def forward(self, x):  # 前向传播方法，接收输入 x
+        return self.cv2(self.cv1(x))  # 将输入 x 先经过 cv1，再经过 cv2，返回最终输出

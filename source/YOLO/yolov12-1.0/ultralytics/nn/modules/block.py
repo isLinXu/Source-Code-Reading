@@ -581,41 +581,41 @@ class RepCSP(C3):
 
 
 class RepNCSPELAN4(nn.Module):
-    """CSP-ELAN."""
+    """CSP-ELAN."""  # CSP-ELAN。
 
     def __init__(self, c1, c2, c3, c4, n=1):
-        """Initializes CSP-ELAN layer with specified channel sizes, repetitions, and convolutions."""
-        super().__init__()
-        self.c = c3 // 2
-        self.cv1 = Conv(c1, c3, 1, 1)
-        self.cv2 = nn.Sequential(RepCSP(c3 // 2, c4, n), Conv(c4, c4, 3, 1))
-        self.cv3 = nn.Sequential(RepCSP(c4, c4, n), Conv(c4, c4, 3, 1))
-        self.cv4 = Conv(c3 + (2 * c4), c2, 1, 1)
+        """Initializes CSP-ELAN layer with specified channel sizes, repetitions, and convolutions."""  # 初始化CSP-ELAN层，指定通道大小、重复次数和卷积。
+        super().__init__()  # 调用父类的初始化方法。
+        self.c = c3 // 2  # 将c3的一半赋值给self.c。
+        self.cv1 = Conv(c1, c3, 1, 1)  # 定义第一个卷积层cv1，输入通道为c1，输出通道为c3，卷积核大小为1，步幅为1。
+        self.cv2 = nn.Sequential(RepCSP(c3 // 2, c4, n), Conv(c4, c4, 3, 1))  # 定义第二个卷积层cv2，包含RepCSP和卷积操作。
+        self.cv3 = nn.Sequential(RepCSP(c4, c4, n), Conv(c4, c4, 3, 1))  # 定义第三个卷积层cv3，包含RepCSP和卷积操作。
+        self.cv4 = Conv(c3 + (2 * c4), c2, 1, 1)  # 定义第四个卷积层cv4，输入通道为c3加上2倍的c4，输出通道为c2，卷积核大小为1，步幅为1。
 
     def forward(self, x):
-        """Forward pass through RepNCSPELAN4 layer."""
-        y = list(self.cv1(x).chunk(2, 1))
-        y.extend((m(y[-1])) for m in [self.cv2, self.cv3])
-        return self.cv4(torch.cat(y, 1))
+        """Forward pass through RepNCSPELAN4 layer."""  # 通过RepNCSPELAN4层的前向传播。
+        y = list(self.cv1(x).chunk(2, 1))  # 将cv1的输出沿着维度1分成两个部分，并转换为列表。
+        y.extend((m(y[-1])) for m in [self.cv2, self.cv3])  # 将cv2和cv3的输出添加到y列表中。
+        return self.cv4(torch.cat(y, 1))  # 将y列表中的张量沿着维度1拼接，并通过cv4进行输出。
 
     def forward_split(self, x):
-        """Forward pass using split() instead of chunk()."""
-        y = list(self.cv1(x).split((self.c, self.c), 1))
-        y.extend(m(y[-1]) for m in [self.cv2, self.cv3])
-        return self.cv4(torch.cat(y, 1))
+        """Forward pass using split() instead of chunk()."""  # 使用split()而不是chunk()进行前向传播。
+        y = list(self.cv1(x).split((self.c, self.c), 1))  # 将cv1的输出沿着维度1按self.c分成两个部分，并转换为列表。
+        y.extend(m(y[-1]) for m in [self.cv2, self.cv3])  # 将cv2和cv3的输出添加到y列表中。
+        return self.cv4(torch.cat(y, 1))  # 将y列表中的张量沿着维度1拼接，并通过cv4进行输出。
 
 
 class ELAN1(RepNCSPELAN4):
-    """ELAN1 module with 4 convolutions."""
+    """ELAN1 module with 4 convolutions."""  # ELAN1模块，包含4个卷积层。
 
     def __init__(self, c1, c2, c3, c4):
-        """Initializes ELAN1 layer with specified channel sizes."""
-        super().__init__(c1, c2, c3, c4)
-        self.c = c3 // 2
-        self.cv1 = Conv(c1, c3, 1, 1)
-        self.cv2 = Conv(c3 // 2, c4, 3, 1)
-        self.cv3 = Conv(c4, c4, 3, 1)
-        self.cv4 = Conv(c3 + (2 * c4), c2, 1, 1)
+        """Initializes ELAN1 layer with specified channel sizes."""  # 初始化ELAN1层，指定通道大小。
+        super().__init__(c1, c2, c3, c4)  # 调用父类RepNCSPELAN4的初始化方法，传递c1, c2, c3, c4参数。
+        self.c = c3 // 2  # 将c3的一半赋值给self.c。
+        self.cv1 = Conv(c1, c3, 1, 1)  # 定义第一个卷积层cv1，输入通道为c1，输出通道为c3，卷积核大小为1，步幅为1。
+        self.cv2 = Conv(c3 // 2, c4, 3, 1)  # 定义第二个卷积层cv2，输入通道为c3的一半，输出通道为c4，卷积核大小为3，步幅为1。
+        self.cv3 = Conv(c4, c4, 3, 1)  # 定义第三个卷积层cv3，输入和输出通道均为c4，卷积核大小为3，步幅为1。
+        self.cv4 = Conv(c3 + (2 * c4), c2, 1, 1)  # 定义第四个卷积层cv4，输入通道为c3加上2倍的c4，输出通道为c2，卷积核大小为1，步幅为1。
 
 
 class AConv(nn.Module):
@@ -653,23 +653,23 @@ class ADown(nn.Module):
 
 
 class SPPELAN(nn.Module):
-    """SPP-ELAN."""
+    """SPP-ELAN."""  # SPP-ELAN。
 
     def __init__(self, c1, c2, c3, k=5):
-        """Initializes SPP-ELAN block with convolution and max pooling layers for spatial pyramid pooling."""
-        super().__init__()
-        self.c = c3
-        self.cv1 = Conv(c1, c3, 1, 1)
-        self.cv2 = nn.MaxPool2d(kernel_size=k, stride=1, padding=k // 2)
-        self.cv3 = nn.MaxPool2d(kernel_size=k, stride=1, padding=k // 2)
-        self.cv4 = nn.MaxPool2d(kernel_size=k, stride=1, padding=k // 2)
-        self.cv5 = Conv(4 * c3, c2, 1, 1)
+        """Initializes SPP-ELAN block with convolution and max pooling layers for spatial pyramid pooling."""  # 初始化SPP-ELAN块，包含卷积层和最大池化层，用于空间金字塔池化。
+        super().__init__()  # 调用父类的初始化方法。
+        self.c = c3  # 将c3赋值给self.c，表示输出通道数。
+        self.cv1 = Conv(c1, c3, 1, 1)  # 定义第一个卷积层cv1，输入通道为c1，输出通道为c3，卷积核大小为1，步幅为1。
+        self.cv2 = nn.MaxPool2d(kernel_size=k, stride=1, padding=k // 2)  # 定义第二个最大池化层cv2，池化核大小为k，步幅为1，填充为k的一半。
+        self.cv3 = nn.MaxPool2d(kernel_size=k, stride=1, padding=k // 2)  # 定义第三个最大池化层cv3，配置与cv2相同。
+        self.cv4 = nn.MaxPool2d(kernel_size=k, stride=1, padding=k // 2)  # 定义第四个最大池化层cv4，配置与cv2相同。
+        self.cv5 = Conv(4 * c3, c2, 1, 1)  # 定义第五个卷积层cv5，输入通道为4倍的c3，输出通道为c2，卷积核大小为1，步幅为1。
 
     def forward(self, x):
-        """Forward pass through SPPELAN layer."""
-        y = [self.cv1(x)]
-        y.extend(m(y[-1]) for m in [self.cv2, self.cv3, self.cv4])
-        return self.cv5(torch.cat(y, 1))
+        """Forward pass through SPPELAN layer."""  # 通过SPPELAN层的前向传播。
+        y = [self.cv1(x)]  # 将输入x通过cv1进行卷积，结果存入列表y中。
+        y.extend(m(y[-1]) for m in [self.cv2, self.cv3, self.cv4])  # 将cv2、cv3和cv4的输出添加到y列表中。
+        return self.cv5(torch.cat(y, 1))  # 将y列表中的张量沿着维度1拼接，并通过cv5进行输出。
 
 
 class CBLinear(nn.Module):
@@ -724,13 +724,20 @@ class C3f(nn.Module):
 
 class C3k2(C2f):
     """Faster Implementation of CSP Bottleneck with 2 convolutions."""
+    # C3k2类是C2f的子类，提供了一个更快的CSP瓶颈实现，使用了两个卷积。
 
     def __init__(self, c1, c2, n=1, c3k=False, e=0.5, g=1, shortcut=True):
         """Initializes the C3k2 module, a faster CSP Bottleneck with 2 convolutions and optional C3k blocks."""
+        # 初始化C3k2模块，这是一个更快的CSP瓶颈，使用两个卷积和可选的C3k块。
         super().__init__(c1, c2, n, shortcut, g, e)
+        # 调用父类C2f的初始化方法，传递参数c1, c2, n, shortcut, g, e。
+
         self.m = nn.ModuleList(
             C3k(self.c, self.c, 2, shortcut, g) if c3k else Bottleneck(self.c, self.c, shortcut, g) for _ in range(n)
         )
+        # 创建一个nn.ModuleList，包含n个模块。
+        # 如果c3k为True，则使用C3k类的实例；否则，使用Bottleneck类的实例。
+        # 每个实例的输入通道和输出通道都是self.c，卷积层数量为2，shortcut和g参数也被传递。
 
 
 class C3k(C3):
@@ -1300,23 +1307,26 @@ class ABlock(nn.Module):
 class A2C2f(nn.Module):  
     """
     A2C2f module with residual enhanced feature extraction using ABlock blocks with area-attention. Also known as R-ELAN
+    A2C2f模块，使用带区域注意力的ABlock块进行残差增强特征提取，也称为R-ELAN。
 
     This class extends the C2f module by incorporating ABlock blocks for fast attention mechanisms and feature extraction.
+    该类通过结合ABlock块扩展了C2f模块，以实现快速注意力机制和特征提取。
 
     Attributes:
-        c1 (int): Number of input channels;
-        c2 (int): Number of output channels;
-        n (int, optional): Number of 2xABlock modules to stack. Defaults to 1;
-        a2 (bool, optional): Whether use area-attention. Defaults to True;
-        area (int, optional): Number of areas the feature map is divided. Defaults to 1;
-        residual (bool, optional): Whether use the residual (with layer scale). Defaults to False;
-        mlp_ratio (float, optional): MLP expansion ratio (or MLP hidden dimension ratio). Defaults to 1.2;
-        e (float, optional): Expansion ratio for R-ELAN modules. Defaults to 0.5.
-        g (int, optional): Number of groups for grouped convolution. Defaults to 1;
-        shortcut (bool, optional): Whether to use shortcut connection. Defaults to True;
+        c1 (int): Number of input channels; 输入通道数量；
+        c2 (int): Number of output channels; 输出通道数量；
+        n (int, optional): Number of 2xABlock modules to stack. Defaults to 1; 堆叠的2xABlock模块数量（可选）。默认为1；
+        a2 (bool, optional): Whether use area-attention. Defaults to True; 是否使用区域注意力（可选）。默认为True；
+        area (int, optional): Number of areas the feature map is divided. Defaults to 1; 特征图被划分的区域数量（可选）。默认为1；
+        residual (bool, optional): Whether use the residual (with layer scale). Defaults to False; 是否使用残差（带层缩放）（可选）。默认为False；
+        mlp_ratio (float, optional): MLP expansion ratio (or MLP hidden dimension ratio). Defaults to 1.2; MLP扩展比例（或MLP隐藏维度比例）（可选）。默认为1.2；
+        e (float, optional): Expansion ratio for R-ELAN modules. Defaults to 0.5. R-ELAN模块的扩展比例（可选）。默认为0.5。
+        g (int, optional): Number of groups for grouped convolution. Defaults to 1; 分组卷积的组数（可选）。默认为1；
+        shortcut (bool, optional): Whether to use shortcut connection. Defaults to True; 是否使用快捷连接（可选）。默认为True；
 
     Methods:
-        forward: Performs a forward pass through the A2C2f module.
+        forward: Performs a forward pass through the A2C2f module. 
+        forward: 通过A2C2f模块执行前向传播。
 
     Examples:
         >>> import torch
@@ -1328,27 +1338,27 @@ class A2C2f(nn.Module):
     """
 
     def __init__(self, c1, c2, n=1, a2=True, area=1, residual=False, mlp_ratio=2.0, e=0.5, g=1, shortcut=True):
-        super().__init__()
-        c_ = int(c2 * e)  # hidden channels
-        assert c_ % 32 == 0, "Dimension of ABlock be a multiple of 32."
+        super().__init__()  # 调用父类的构造函数
+        c_ = int(c2 * e)  # hidden channels 隐藏通道数
+        assert c_ % 32 == 0, "Dimension of ABlock be a multiple of 32."  # 确保ABlock的维度是32的倍数
 
         # num_heads = c_ // 64 if c_ // 64 >= 2 else c_ // 32
-        num_heads = c_ // 32
+        num_heads = c_ // 32  # 计算头数
 
-        self.cv1 = Conv(c1, c_, 1, 1)
-        self.cv2 = Conv((1 + n) * c_, c2, 1)  # optional act=FReLU(c2)
+        self.cv1 = Conv(c1, c_, 1, 1)  # 第一个卷积层
+        self.cv2 = Conv((1 + n) * c_, c2, 1)  # 第二个卷积层，输出通道为c2
 
-        init_values = 0.01  # or smaller
-        self.gamma = nn.Parameter(init_values * torch.ones((c2)), requires_grad=True) if a2 and residual else None
+        init_values = 0.01  # or smaller 初始化值
+        self.gamma = nn.Parameter(init_values * torch.ones((c2)), requires_grad=True) if a2 and residual else None  # gamma参数
 
         self.m = nn.ModuleList(
             nn.Sequential(*(ABlock(c_, num_heads, mlp_ratio, area) for _ in range(2))) if a2 else C3k(c_, c_, 2, shortcut, g) for _ in range(n)
-        )
+        )  # 创建ABlock模块列表，如果不使用a2则使用C3k模块
 
     def forward(self, x):
-        """Forward pass through R-ELAN layer."""
-        y = [self.cv1(x)]
-        y.extend(m(y[-1]) for m in self.m)
+        """Forward pass through R-ELAN layer. 通过R-ELAN层执行前向传播。"""
+        y = [self.cv1(x)]  # 通过第一个卷积层处理输入
+        y.extend(m(y[-1]) for m in self.m)  # 通过ABlock模块处理数据
         if self.gamma is not None:
-            return x + (self.gamma * self.cv2(torch.cat(y, 1)).permute(0, 2, 3, 1)).permute(0, 3, 1, 2)
-        return self.cv2(torch.cat(y, 1))
+            return x + (self.gamma * self.cv2(torch.cat(y, 1)).permute(0, 2, 3, 1)).permute(0, 3, 1, 2)  # 如果gamma存在，返回残差连接的输出
+        return self.cv2(torch.cat(y, 1))  # 否则返回卷积层的输出
