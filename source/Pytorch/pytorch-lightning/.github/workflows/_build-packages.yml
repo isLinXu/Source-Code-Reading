@@ -1,0 +1,70 @@
+name: Call building packages
+
+on:
+  workflow_call:
+    inputs:
+      artifact-name:
+        description: "Unique name for collecting artifacts"
+        required: true
+        type: string
+      pkg-names:
+        description: "list package names to be build in json format"
+        required: false
+        type: string
+        default: |
+          ["lightning", "fabric", "pytorch"]
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build-packages:
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        pkg-name: ${{ fromJSON(inputs.pkg-names) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - run: python -c "print('NB_DIRS=' + str(2 if '${{ matrix.pkg-name }}' == 'pytorch' else 1))" >> $GITHUB_ENV
+      - name: Build & check package
+        uses: ./.github/actions/pkg-check
+        with:
+          pkg-name: ${{ matrix.pkg-name }}
+          nb-dirs: ${{ env.NB_DIRS }}
+
+      - run: |
+          mkdir -p pypi/${{ matrix.pkg-name }}
+          cp dist/* pypi/${{ matrix.pkg-name }}/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact-name }}-${{ matrix.pkg-name }}
+          path: pypi
+          retention-days: 1
+
+  merge-artifacts:
+    needs: build-packages
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with: # download all build artifacts
+          pattern: ${{ inputs.artifact-name }}-*
+          merge-multiple: true
+          path: pypi
+      - run: |
+          sudo apt-get install -y tree
+          tree pypi
+
+      - name: Keep artifact
+        run: python -c "print('DAYS=' + str(5 if '${{ github.event_name }}'.startswith('pull_request') else 0))" >> $GITHUB_ENV
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: pypi
+          retention-days: ${{ env.DAYS }}
+          if-no-files-found: error

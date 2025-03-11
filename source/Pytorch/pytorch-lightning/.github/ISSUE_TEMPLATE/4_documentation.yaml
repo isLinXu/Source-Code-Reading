@@ -1,0 +1,28 @@
+name: Typos and doc fixes
+description: Tell us about how we can improve our documentation
+labels: ["needs triage", "docs"]
+body:
+  - type: textarea
+    attributes:
+      label: 📚 Documentation
+      description: A description of the 🐛bug🐛.
+      placeholder: |
+        For typos and doc fixes, please go ahead and:
+
+        - For a simlpe typo or fix, please send directly a PR (no need to create an issue)
+        - If you are not sure about the proper solution, please describe here your finding...
+
+    validations:
+      required: true
+
+  - type: markdown
+    attributes:
+      value: >
+        ### If you enjoy Lightning, check out our other projects! ⚡
+
+        - [**Metrics**](https://github.com/Lightning-AI/metrics):
+          Machine learning metrics for distributed, scalable PyTorch applications.
+          enables pure PyTorch users to scale their existing code on any kind of device while retaining full control over their own loops and optimization logic.
+        - [**GPT**](https://github.com/Lightning-AI/lit-GPT):
+          Hackable implementation of state-of-the-art open-source LLMs based on nanoGPT.
+          Supports flash attention, 4-bit and 8-bit quantization, LoRA and LLaMA-Adapter fine-tuning, pre-training. Apache 2.0-licensed.

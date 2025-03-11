@@ -1,0 +1,70 @@
+data:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "src/lightning/data/**"
+          - "requirements/data/**"
+
+pl:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "src/lightning/pytorch/**"
+          - "src/pytorch_lightning/*"
+          - "tests/tests_pytorch/**"
+          - "tests/legacy/**"
+          - "examples/pytorch/**"
+          - "docs/source-pytorch/**"
+          - "requirements/pytorch/**"
+
+fabric:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "src/lightning/fabric/**"
+          - "src/lightning_fabric/*"
+          - "tests/tests_fabric/**"
+          - "examples/fabric/**"
+          - "docs/source-fabric/**"
+          - "requirements/fabric/**"
+
+ci:
+  - changed-files:
+      - any-glob-to-any-file:
+          - ".actions/**"
+          - ".azure/**"
+          - ".github/**"
+          - "dockers/**"
+          - ".pre-commit-config.yml"
+
+docs:
+  - changed-files:
+      - any-glob-to-any-file:
+          - ".github/workflows/docs-build.yml"
+          - "docs/**"
+          - "requirements/docs.txt"
+          - "requirements/*/docs.txt"
+
+package:
+  - changed-files:
+      - any-glob-to-any-file:
+          - ".github/workflows/ci-pkg-install.yml"
+          - "setup.py"
+          - "pyproject.toml"
+          - "src/version.info"
+          - "src/lightning/*/__setup__.py"
+          - "src/lightning/*/__version__.py"
+          - "src/lightning_fabric/*"
+          - "src/pytorch_lightning/*"
+
+dockers:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "dockers/**"
+          - ".github/workflows/docker-build.yml"
+
+dependencies:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "requirements.txt"
+          - "requirements/**"
+
+release:
+  - base-branch: "release/*"

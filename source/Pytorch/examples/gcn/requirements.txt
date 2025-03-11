@@ -1,0 +1,4 @@
+torch
+torchvision==0.20.0
+requests
+numpy<2
