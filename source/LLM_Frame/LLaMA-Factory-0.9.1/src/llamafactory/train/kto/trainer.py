@@ -23,78 +23,83 @@ from typing import TYPE_CHECKING, Dict, Literal, Optional, Tuple, Union
 
 import torch
 from transformers import Trainer
-from trl import KTOTrainer
-from trl.trainer import disable_dropout_in_model
-from typing_extensions import override
+from trl import KTOTrainer  # TRL的KTO训练器基类
+from trl.trainer import disable_dropout_in_model  # 禁用dropout
+from typing_extensions import override  # 重写装饰器
 
-from ...extras.constants import IGNORE_INDEX
-from ...extras.packages import is_transformers_version_equal_to_4_46
-from ..callbacks import SaveProcessorCallback
-from ..trainer_utils import create_custom_optimizer, create_custom_scheduler, get_batch_logps
+from ...extras.constants import IGNORE_INDEX  # 特殊索引常量
+from ...extras.packages import is_transformers_version_equal_to_4_46  # 版本检查
+from ..callbacks import SaveProcessorCallback  # 处理器保存回调
+from ..trainer_utils import create_custom_optimizer, create_custom_scheduler, get_batch_logps  # 自定义工具
 
 
 if TYPE_CHECKING:
     import torch.utils.data
-    from transformers import PreTrainedModel, ProcessorMixin
-
-    from ...hparams import FinetuningArguments
+    from transformers import PreTrainedModel, ProcessorMixin  # 类型提示
+    from ...hparams import FinetuningArguments  # 微调参数
 
 
 class CustomKTOTrainer(KTOTrainer):
     def __init__(
         self,
-        model: Union["PreTrainedModel", torch.nn.Module],
-        ref_model: Optional[Union["PreTrainedModel", torch.nn.Module]],
-        finetuning_args: "FinetuningArguments",
-        processor: Optional["ProcessorMixin"],
-        disable_dropout: bool = True,
+        model: Union["PreTrainedModel", torch.nn.Module],  # 待训练模型
+        ref_model: Optional[Union["PreTrainedModel", torch.nn.Module]],  # 参考模型
+        finetuning_args: "FinetuningArguments",  # 微调参数
+        processor: Optional["ProcessorMixin"],  # 处理器（多模态用）
+        disable_dropout: bool = True,  # 是否禁用dropout
         **kwargs,
     ):
+        # 初始化时禁用模型中的dropout层
         if disable_dropout:
             disable_dropout_in_model(model)
             if ref_model is not None:
                 disable_dropout_in_model(ref_model)
 
+        # 配置训练参数
         self.finetuning_args = finetuning_args
-        self.reference_free = False
-        self.use_dpo_data_collator = True  # hack to avoid warning
-        self.generate_during_eval = False  # disable at evaluation
-        self.label_pad_token_id = IGNORE_INDEX
-        self.padding_value = 0
-        self.is_encoder_decoder = model.config.is_encoder_decoder
-        self.precompute_ref_log_probs = False
+        self.reference_free = False  # 是否无参考模型
+        self.use_dpo_data_collator = True  # 避免警告的hack
+        self.generate_during_eval = False  # 评估时不生成
+        self.label_pad_token_id = IGNORE_INDEX  # 标签填充索引
+        self.padding_value = 0  # 填充值
+        self.is_encoder_decoder = model.config.is_encoder_decoder  # 是否是编码-解码结构
+        self.precompute_ref_log_probs = False  # 是否预计算参考模型log概率
         self._precomputed_train_ref_log_probs = False
         self._precomputed_eval_ref_log_probs = False
-        self._peft_has_been_casted_to_bf16 = False
+        self._peft_has_been_casted_to_bf16 = False  # PEFT模型是否转为bf16
 
-        self.ref_model = ref_model
-        self._stored_metrics = defaultdict(lambda: defaultdict(list))
+        self.ref_model = ref_model  # 参考模型
+        self._stored_metrics = defaultdict(lambda: defaultdict(list))  # 指标存储
 
-        # kto hyperparams
-        self.beta = finetuning_args.pref_beta
-        self.desirable_weight = finetuning_args.kto_chosen_weight
-        self.undesirable_weight = finetuning_args.kto_rejected_weight
-        self.ftx_gamma = finetuning_args.pref_ftx
+        # KTO超参数设置
+        self.beta = finetuning_args.pref_beta  # 温度参数
+        self.desirable_weight = finetuning_args.kto_chosen_weight  # 正样本权重
+        self.undesirable_weight = finetuning_args.kto_rejected_weight  # 负样本权重
+        self.ftx_gamma = finetuning_args.pref_ftx  # 监督微调混合系数
 
+        # 初始化父类Trainer
         Trainer.__init__(self, model=model, **kwargs)
         if not hasattr(self, "accelerator"):
             raise AttributeError("Please update `transformers`.")
 
-        warnings.simplefilter("ignore")  # remove gc warnings on ref model
+        warnings.simplefilter("ignore")  # 忽略参考模型的gc警告
 
+        # 准备参考模型
         if ref_model is not None:
-            if self.is_deepspeed_enabled:
+            if self.is_deepspeed_enabled:  # DeepSpeed处理
                 if not (
                     getattr(ref_model, "is_loaded_in_8bit", False) or getattr(ref_model, "is_loaded_in_4bit", False)
-                ):  # quantized models are already set on the correct device
+                ):  # 量化模型已部署在正确设备
                     self.ref_model = self._prepare_deepspeed(self.ref_model)
-            else:
+            else:  # 普通加速模式
                 self.ref_model = self.accelerator.prepare_model(self.ref_model, evaluation_mode=True)
                 self.ref_model.eval()
 
+        # 添加处理器保存回调
         if processor is not None:
             self.add_callback(SaveProcessorCallback(processor))
 
+        # 集成BAdam优化器
         if finetuning_args.use_badam:
             from badam import BAdamCallback, clip_grad_norm_old_version  # type: ignore
 
@@ -103,6 +108,7 @@ class CustomKTOTrainer(KTOTrainer):
 
     @override
     def create_optimizer(self) -> "torch.optim.Optimizer":
+        # 创建自定义优化器
         if self.optimizer is None:
             self.optimizer = create_custom_optimizer(self.model, self.args, self.finetuning_args)
         return super().create_optimizer()
@@ -111,41 +117,35 @@ class CustomKTOTrainer(KTOTrainer):
     def create_scheduler(
         self, num_training_steps: int, optimizer: Optional["torch.optim.Optimizer"] = None
     ) -> "torch.optim.lr_scheduler.LRScheduler":
+        # 创建自定义学习率调度器
         create_custom_scheduler(self.args, num_training_steps, optimizer)
         return super().create_scheduler(num_training_steps, optimizer)
 
     @override
     def _get_train_sampler(self) -> Optional["torch.utils.data.Sampler"]:
-        r"""
-        Replaces the sequential sampler of KTO Trainer created by trl with the random sampler.
-        """
+        # 替换KTO默认的序列采样器为随机采样器
         return Trainer._get_train_sampler(self)
 
     @override
     def get_batch_samples(self, epoch_iterator, num_batches):
-        r"""
-        Replaces the method of KTO Trainer with the one of the standard Trainer.
-        """
+        # 使用标准Trainer的批次采样方法
         return Trainer.get_batch_samples(self, epoch_iterator, num_batches)
 
     @override
     def forward(
         self, model: "PreTrainedModel", batch: Dict[str, "torch.Tensor"], prefix: Literal["", "kl_"] = ""
     ) -> Tuple["torch.Tensor", "torch.Tensor", "torch.Tensor"]:
-        r"""
-        Runs forward pass and computes the log probabilities.
-        """
-        batch = {k: v.detach().clone() for k, v in batch.items()}  # avoid error
+        # 前向计算log概率
+        batch = {k: v.detach().clone() for k, v in batch.items()}  # 避免梯度错误
         model_inputs = {
             "input_ids": batch[f"{prefix}input_ids"],
             "attention_mask": batch[f"{prefix}attention_mask"],
         }
+        # 处理多模态输入
         if f"{prefix}token_type_ids" in batch:
             model_inputs["token_type_ids"] = batch[f"{prefix}token_type_ids"]
-
         if "pixel_values" in batch:
             model_inputs["pixel_values"] = batch["pixel_values"]
-
         if "image_grid_thw" in batch:
             model_inputs["image_grid_thw"] = batch["image_grid_thw"]
 
@@ -157,13 +157,16 @@ class CustomKTOTrainer(KTOTrainer):
     def concatenated_forward(
         self, model: "PreTrainedModel", batch: Dict[str, "torch.Tensor"]
     ) -> Tuple["torch.Tensor", "torch.Tensor", "torch.Tensor", "torch.Tensor", "torch.Tensor", "torch.Tensor"]:
+        # 合并策略模型和参考模型的前向计算
         target_logits, target_logps, target_logps_avg = self.forward(model, batch)
-        with torch.no_grad():
+        with torch.no_grad():  # 参考模型不计算梯度
             _, kl_logps, _ = self.forward(model, batch, prefix="kl_")
 
+        # 验证输入标签匹配
         if len(target_logps) != len(batch["kto_tags"]):
             raise ValueError("Mismatched shape of inputs and labels.")
 
+        # 分割正负样本
         chosen_logits = target_logits[batch["kto_tags"]]
         chosen_logps = target_logps[batch["kto_tags"]]
         rejected_logits = target_logits[~batch["kto_tags"]]
@@ -175,17 +178,15 @@ class CustomKTOTrainer(KTOTrainer):
     def compute_reference_log_probs(
         self, model: "PreTrainedModel", batch: Dict[str, "torch.Tensor"]
     ) -> Tuple["torch.Tensor", "torch.Tensor", "torch.Tensor"]:
-        r"""
-        Computes log probabilities of the reference model.
-        """
-        if self.ref_model is None:
+        # 计算参考模型的log概率
+        if self.ref_model is None:  # 无参考模型时使用当前模型
             ref_model = model
-            ref_context = self.accelerator.unwrap_model(model).disable_adapter()
+            ref_context = self.accelerator.unwrap_model(model).disable_adapter()  # 禁用适配器
         else:
             ref_model = self.ref_model
             ref_context = nullcontext()
 
-        with torch.no_grad(), ref_context:
+        with torch.no_grad(), ref_context:  # 不计算梯度
             reference_chosen_logps, reference_rejected_logps, _, _, reference_kl_logps, _ = self.concatenated_forward(
                 ref_model, batch
             )
@@ -198,10 +199,9 @@ class CustomKTOTrainer(KTOTrainer):
         model: "PreTrainedModel",
         batch: Dict[str, "torch.Tensor"],
     ) -> Tuple["torch.Tensor", Dict[str, "torch.Tensor"]]:
-        r"""
-        Computes the DPO loss and other metrics for the given batch of inputs for train or test.
-        """
+        # 计算批次损失和指标
         metrics = {}
+        # 策略模型前向
         (
             policy_chosen_logps,
             policy_rejected_logps,
@@ -210,9 +210,11 @@ class CustomKTOTrainer(KTOTrainer):
             policy_kl_logps,
             policy_chosen_logps_avg,
         ) = self.concatenated_forward(model, batch)
+        # 参考模型前向
         reference_chosen_logps, reference_rejected_logps, reference_kl_logps = self.compute_reference_log_probs(
             model, batch
         )
+        # 计算KTO损失
         losses, chosen_rewards, rejected_rewards, kl = self.kto_loss(
             policy_chosen_logps,
             policy_rejected_logps,
@@ -221,12 +223,14 @@ class CustomKTOTrainer(KTOTrainer):
             reference_rejected_logps,
             reference_kl_logps,
         )
-        losses = losses.nanmean()
+        losses = losses.nanmean()  # 处理NaN值
 
-        if self.ftx_gamma > 1e-6 and len(policy_chosen_logps) > 0:  # remember to rescale
+        # 添加监督微调损失项
+        if self.ftx_gamma > 1e-6 and len(policy_chosen_logps) > 0:  # 记得重新缩放
             sft_loss = -policy_chosen_logps_avg
             losses += self.ftx_gamma * sft_loss.nanmean() / len(policy_chosen_logps) * len(batch["labels"])
 
+        # 收集指标
         num_chosen = len(chosen_rewards)
         num_rejected = len(rejected_rewards)
         if num_chosen > 0:
@@ -241,15 +245,12 @@ class CustomKTOTrainer(KTOTrainer):
             metrics["logits/rejected_sum"] = policy_rejected_logits.nansum().item()
             metrics["count/rejected"] = float(num_rejected)
 
-        metrics["kl"] = kl.item()
+        metrics["kl"] = kl.item()  # KL散度指标
         return losses, metrics
 
     @override
     def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
-        r"""
-        Fixes the loss value for transformers 4.46.0.
-        https://github.com/huggingface/transformers/blob/v4.46.0/src/transformers/trainer.py#L3605
-        """
+        # 修复transformers 4.46.0的损失计算问题
         loss = super().compute_loss(model, inputs, return_outputs)
         if is_transformers_version_equal_to_4_46() and kwargs.pop("num_items_in_batch", False):
             if return_outputs:
@@ -261,38 +262,37 @@ class CustomKTOTrainer(KTOTrainer):
 
     @override
     def log(self, logs: Dict[str, float]) -> None:
-        r"""
-        Log `logs` on the various objects watching training, including stored metrics.
-        """
-        # logs either has "loss" or "eval_loss"
-        train_eval = "train" if "loss" in logs else "eval"
+        # 自定义日志记录逻辑
+        train_eval = "train" if "loss" in logs else "eval"  # 判断训练/评估模式
         prefix = "eval_" if train_eval == "eval" else ""
-        # Add averaged stored metrics to logs
+        # 合并存储的指标
         key_list, metric_list = [], []
         for key, metrics in self._stored_metrics[train_eval].items():
             key_list.append(key)
             metric_list.append(torch.tensor(metrics, dtype=torch.float).to(self.accelerator.device).sum().item())
 
         del self._stored_metrics[train_eval]
-        if len(metric_list) < 9:  # pad to for all reduce
+        if len(metric_list) < 9:  # 填充以便all_reduce操作
             for i in range(9 - len(metric_list)):
                 key_list.append(f"dummy_{i}")
                 metric_list.append(0.0)
 
+        # 分布式指标聚合
         metric_list = torch.tensor(metric_list, dtype=torch.float).to(self.accelerator.device)
         metric_list = self.accelerator.reduce(metric_list, "sum").tolist()
         metric_dict: Dict[str, float] = dict(zip(key_list, metric_list))
-        for split in ["chosen", "rejected"]:  # accumulate average metrics from sums and lengths
+        # 计算平均指标
+        for split in ["chosen", "rejected"]:
             if f"count/{split}" in metric_dict:
                 for key in ("rewards", "logps", "logits"):
                     logs[f"{prefix}{key}/{split}"] = metric_dict[f"{key}/{split}_sum"] / metric_dict[f"count/{split}"]
                     del metric_dict[f"{key}/{split}_sum"]
                 del metric_dict[f"count/{split}"]
-
-        if f"{prefix}rewards/chosen" in logs and f"{prefix}rewards/rejected" in logs:  # calculate reward margin
+        # 计算奖励边际
+        if f"{prefix}rewards/chosen" in logs and f"{prefix}rewards/rejected" in logs:
             logs[f"{prefix}rewards/margins"] = logs[f"{prefix}rewards/chosen"] - logs[f"{prefix}rewards/rejected"]
-
-        for key, metric in metric_dict.items():  # add remaining items
+        # 添加剩余指标
+        for key, metric in metric_dict.items():
             if not key.startswith("dummy_"):
                 logs[key] = metric
 

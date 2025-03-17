@@ -45,21 +45,23 @@ logger = logging.get_logger(__name__)
 class HuggingfaceEngine(BaseEngine):
     def __init__(
         self,
-        model_args: "ModelArguments",
-        data_args: "DataArguments",
-        finetuning_args: "FinetuningArguments",
-        generating_args: "GeneratingArguments",
+        model_args: "ModelArguments",  # 模型参数（路径、精度等）
+        data_args: "DataArguments",  # 数据参数（模板、工具格式等）
+        finetuning_args: "FinetuningArguments",  # 微调参数（适配器路径等）
+        generating_args: "GeneratingArguments",  # 生成参数（温度、top_p等）
     ) -> None:
-        self.can_generate = finetuning_args.stage == "sft"
-        tokenizer_module = load_tokenizer(model_args)
-        self.tokenizer = tokenizer_module["tokenizer"]
-        self.processor = tokenizer_module["processor"]
-        self.tokenizer.padding_side = "left" if self.can_generate else "right"
-        self.template = get_template_and_fix_tokenizer(self.tokenizer, data_args)
+        self.can_generate = finetuning_args.stage == "sft"  # 判断是否支持生成模式（仅SFT阶段）
+        tokenizer_module = load_tokenizer(model_args)  # 加载分词器
+        self.tokenizer = tokenizer_module["tokenizer"]  # 文本分词器
+        self.processor = tokenizer_module["processor"]  # 多模态处理器（图像/视频）
+        self.tokenizer.padding_side = "left" if self.can_generate else "right"  # 设置填充方向（生成模式左填充）
+        self.template = get_template_and_fix_tokenizer(self.tokenizer, data_args)  # 获取对话模板并修复分词器
         self.model = load_model(
             self.tokenizer, model_args, finetuning_args, is_trainable=False, add_valuehead=(not self.can_generate)
-        )  # must after fixing tokenizer to resize vocab
-        self.generating_args = generating_args.to_dict()
+        )  # 加载模型（非训练模式，奖励模型需要添加value head）
+        self.generating_args = generating_args.to_dict()  # 转换生成参数为字典格式
+        
+        # 确保事件循环存在
         try:
             asyncio.get_event_loop()
         except RuntimeError:
@@ -67,7 +69,7 @@ class HuggingfaceEngine(BaseEngine):
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
 
-        self.semaphore = asyncio.Semaphore(int(os.getenv("MAX_CONCURRENT", "1")))
+        self.semaphore = asyncio.Semaphore(int(os.getenv("MAX_CONCURRENT", "1")))  # 并发控制信号量
 
     @staticmethod
     def _process_args(
@@ -76,51 +78,51 @@ class HuggingfaceEngine(BaseEngine):
         processor: Optional["ProcessorMixin"],
         template: "Template",
         generating_args: Dict[str, Any],
-        messages: Sequence[Dict[str, str]],
-        system: Optional[str] = None,
-        tools: Optional[str] = None,
-        images: Optional[Sequence["ImageInput"]] = None,
-        videos: Optional[Sequence["VideoInput"]] = None,
-        input_kwargs: Optional[Dict[str, Any]] = {},
+        messages: Sequence[Dict[str, str]],  # 原始对话消息
+        system: Optional[str] = None,  # 系统提示
+        tools: Optional[str] = None,  # 工具定义
+        images: Optional[Sequence["ImageInput"]] = None,  # 图像输入
+        videos: Optional[Sequence["VideoInput"]] = None,  # 视频输入
+        input_kwargs: Optional[Dict[str, Any]] = {},  # 用户输入参数
     ) -> Tuple[Dict[str, Any], int]:
+        # 处理多模态输入
         mm_input_dict = {"images": [], "videos": [], "imglens": [0], "vidlens": [0]}
         if images is not None:
             mm_input_dict.update({"images": images, "imglens": [len(images)]})
             if not any(IMAGE_PLACEHOLDER in message["content"] for message in messages):
-                messages[0]["content"] = IMAGE_PLACEHOLDER * len(images) + messages[0]["content"]
+                messages[0]["content"] = IMAGE_PLACEHOLDER * len(images) + messages[0]["content"]  # 自动添加图像占位符
 
         if videos is not None:
             mm_input_dict.update({"videos": videos, "vidlens": [len(videos)]})
             if not any(VIDEO_PLACEHOLDER in message["content"] for message in messages):
-                messages[0]["content"] = VIDEO_PLACEHOLDER * len(videos) + messages[0]["content"]
+                messages[0]["content"] = VIDEO_PLACEHOLDER * len(videos) + messages[0]["content"]  # 自动添加视频占位符
 
+        # 处理多模态消息
         messages = template.mm_plugin.process_messages(
             messages, mm_input_dict["images"], mm_input_dict["videos"], processor
         )
-        paired_messages = messages + [{"role": "assistant", "content": ""}]
-        system = system or generating_args["default_system"]
+        paired_messages = messages + [{"role": "assistant", "content": ""}]  # 添加空助手消息用于生成
+        system = system or generating_args["default_system"]  # 使用默认系统提示
+        
+        # 编码对话为token id
         prompt_ids, _ = template.encode_oneturn(tokenizer, paired_messages, system, tools)
-        prompt_ids, _ = template.mm_plugin.process_token_ids(
+        prompt_ids, _ = template.mm_plugin.process_token_ids(  # 处理多模态token id
             prompt_ids, None, mm_input_dict["images"], mm_input_dict["videos"], tokenizer, processor
         )
-        prompt_length = len(prompt_ids)
-        inputs = torch.tensor([prompt_ids], device=model.device)
-        attention_mask = torch.ones_like(inputs, dtype=torch.bool)
+        prompt_length = len(prompt_ids)  # 记录prompt长度
+        
+        # 准备模型输入
+        inputs = torch.tensor([prompt_ids], device=model.device)  # 转换为张量
+        attention_mask = torch.ones_like(inputs, dtype=torch.bool)  # 创建注意力掩码
 
-        do_sample: Optional[bool] = input_kwargs.pop("do_sample", None)
-        temperature: Optional[float] = input_kwargs.pop("temperature", None)
-        top_p: Optional[float] = input_kwargs.pop("top_p", None)
-        top_k: Optional[float] = input_kwargs.pop("top_k", None)
-        num_return_sequences: int = input_kwargs.pop("num_return_sequences", 1)
-        repetition_penalty: Optional[float] = input_kwargs.pop("repetition_penalty", None)
-        length_penalty: Optional[float] = input_kwargs.pop("length_penalty", None)
-        max_length: Optional[int] = input_kwargs.pop("max_length", None)
-        max_new_tokens: Optional[int] = input_kwargs.pop("max_new_tokens", None)
-        stop: Optional[Union[str, List[str]]] = input_kwargs.pop("stop", None)
-
-        if stop is not None:
-            logger.warning_rank0("Stop parameter is not supported by the huggingface engine yet.")
-
+        # 处理生成参数
+        do_sample = input_kwargs.pop("do_sample", None)
+        temperature = input_kwargs.pop("temperature", None)
+        top_p = input_kwargs.pop("top_p", None)
+        top_k = input_kwargs.pop("top_k", None)
+        num_return_sequences = input_kwargs.pop("num_return_sequences", 1)  # 生成序列数
+        
+        # 合并用户参数和默认参数
         generating_args = generating_args.copy()
         generating_args.update(
             dict(
@@ -129,51 +131,38 @@ class HuggingfaceEngine(BaseEngine):
                 top_p=top_p if top_p is not None else generating_args["top_p"],
                 top_k=top_k if top_k is not None else generating_args["top_k"],
                 num_return_sequences=num_return_sequences,
-                repetition_penalty=repetition_penalty
-                if repetition_penalty is not None
-                else generating_args["repetition_penalty"],
-                length_penalty=length_penalty if length_penalty is not None else generating_args["length_penalty"],
-                eos_token_id=[tokenizer.eos_token_id] + tokenizer.additional_special_tokens_ids,
+                eos_token_id=[tokenizer.eos_token_id] + tokenizer.additional_special_tokens_ids,  # 停止token列表
                 pad_token_id=tokenizer.pad_token_id,
             )
         )
 
-        if isinstance(num_return_sequences, int) and num_return_sequences > 1:  # do_sample needs temperature > 0
+        # 处理生成模式逻辑
+        if num_return_sequences > 1:  # 多序列生成需要采样
             generating_args["do_sample"] = True
-            generating_args["temperature"] = generating_args["temperature"] or 1.0
+            generating_args["temperature"] = generating_args["temperature"] or 1.0  # 确保温度有效
 
-        if not generating_args["temperature"]:
+        if not generating_args["temperature"]:  # 温度=0时关闭采样
             generating_args["do_sample"] = False
 
-        if not generating_args["do_sample"]:
-            generating_args.pop("temperature", None)
-            generating_args.pop("top_p", None)
-
-        if max_length:
-            generating_args.pop("max_new_tokens", None)
-            generating_args["max_length"] = max_length
-
-        if max_new_tokens:
-            generating_args.pop("max_length", None)
-            generating_args["max_new_tokens"] = max_new_tokens
-
+        # 准备最终生成参数
         gen_kwargs = dict(
             inputs=inputs,
             attention_mask=attention_mask,
-            generation_config=GenerationConfig(**generating_args),
-            logits_processor=get_logits_processor(),
+            generation_config=GenerationConfig(**generating_args),  # 转换为生成配置
+            logits_processor=get_logits_processor(),  # 添加logits处理器
         )
 
+        # 处理多模态输入
         mm_inputs = template.mm_plugin.get_mm_inputs(**mm_input_dict, batch_ids=[prompt_ids], processor=processor)
         for key, value in mm_inputs.items():
-            if isinstance(value, list) and all(isinstance(v, torch.Tensor) for v in value):  # for pixtral inputs
-                value = torch.stack(value)  # assume they have same sizes
+            if isinstance(value, list) and all(isinstance(v, torch.Tensor) for v in value):  # 处理多模态张量列表
+                value = torch.stack(value)  # 堆叠为批次张量
             elif not isinstance(value, torch.Tensor):
-                value = torch.tensor(value)
+                value = torch.tensor(value)  # 转换为张量
 
-            gen_kwargs[key] = value.to(model.device)
+            gen_kwargs[key] = value.to(model.device)  # 移动到模型设备
 
-        return gen_kwargs, prompt_length
+        return gen_kwargs, prompt_length  # 返回生成参数和prompt长度
 
     @staticmethod
     @torch.inference_mode()
@@ -236,31 +225,22 @@ class HuggingfaceEngine(BaseEngine):
         videos: Optional[Sequence["VideoInput"]] = None,
         input_kwargs: Optional[Dict[str, Any]] = {},
     ) -> Callable[[], str]:
+        # 准备生成参数
         gen_kwargs, _ = HuggingfaceEngine._process_args(
-            model,
-            tokenizer,
-            processor,
-            template,
-            generating_args,
-            messages,
-            system,
-            tools,
-            images,
-            videos,
-            input_kwargs,
+            model, tokenizer, processor, template, generating_args, messages, system, tools, images, videos, input_kwargs
         )
-        streamer = TextIteratorStreamer(tokenizer, skip_prompt=True, skip_special_tokens=True)
+        streamer = TextIteratorStreamer(tokenizer, skip_prompt=True, skip_special_tokens=True)  # 创建流式生成器
         gen_kwargs["streamer"] = streamer
-        thread = Thread(target=model.generate, kwargs=gen_kwargs, daemon=True)
+        thread = Thread(target=model.generate, kwargs=gen_kwargs, daemon=True)  # 后台生成线程
         thread.start()
 
         def stream():
             try:
-                return streamer.__next__()
+                return streamer.__next__()  # 获取下一个token
             except StopIteration:
                 raise StopAsyncIteration()
 
-        return stream
+        return stream  # 返回流式生成函数
 
     @staticmethod
     @torch.inference_mode()
@@ -295,25 +275,17 @@ class HuggingfaceEngine(BaseEngine):
         **input_kwargs,
     ) -> List["Response"]:
         if not self.can_generate:
-            raise ValueError("The current model does not support `chat`.")
+            raise ValueError("The current model does not support `chat`.")  # 检查生成能力
 
-        loop = asyncio.get_running_loop()
-        input_args = (
-            self.model,
-            self.tokenizer,
-            self.processor,
-            self.template,
-            self.generating_args,
-            messages,
-            system,
-            tools,
-            images,
-            videos,
-            input_kwargs,
-        )
-        async with self.semaphore:
-            with concurrent.futures.ThreadPoolExecutor() as pool:
-                return await loop.run_in_executor(pool, self._chat, *input_args)
+        loop = asyncio.get_running_loop()  # 获取当前事件循环
+        async with self.semaphore:  # 并发控制
+            with concurrent.futures.ThreadPoolExecutor() as pool:  # 线程池执行同步方法
+                return await loop.run_in_executor(
+                    pool, 
+                    self._chat,  # 实际调用同步生成方法
+                    self.model, self.tokenizer, self.processor, self.template, 
+                    self.generating_args, messages, system, tools, images, videos, input_kwargs
+                )
 
     @override
     async def stream_chat(
@@ -329,25 +301,15 @@ class HuggingfaceEngine(BaseEngine):
             raise ValueError("The current model does not support `stream_chat`.")
 
         loop = asyncio.get_running_loop()
-        input_args = (
-            self.model,
-            self.tokenizer,
-            self.processor,
-            self.template,
-            self.generating_args,
-            messages,
-            system,
-            tools,
-            images,
-            videos,
-            input_kwargs,
-        )
         async with self.semaphore:
             with concurrent.futures.ThreadPoolExecutor() as pool:
-                stream = self._stream_chat(*input_args)
+                stream = self._stream_chat(  # 获取流式生成函数
+                    self.model, self.tokenizer, self.processor, self.template, 
+                    self.generating_args, messages, system, tools, images, videos, input_kwargs
+                )
                 while True:
                     try:
-                        yield await loop.run_in_executor(pool, stream)
+                        yield await loop.run_in_executor(pool, stream)  # 异步获取每个token
                     except StopAsyncIteration:
                         break
 

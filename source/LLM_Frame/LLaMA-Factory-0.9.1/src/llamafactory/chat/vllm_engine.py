@@ -49,146 +49,136 @@ logger = logging.get_logger(__name__)
 class VllmEngine(BaseEngine):
     def __init__(
         self,
-        model_args: "ModelArguments",
-        data_args: "DataArguments",
-        finetuning_args: "FinetuningArguments",
-        generating_args: "GeneratingArguments",
+        model_args: "ModelArguments",  # 模型参数（路径、精度等）
+        data_args: "DataArguments",  # 数据参数（模板、工具格式等）
+        finetuning_args: "FinetuningArguments",  # 微调参数（适配器路径等）
+        generating_args: "GeneratingArguments",  # 生成参数（温度、top_p等）
     ) -> None:
-        config = load_config(model_args)  # may download model from ms hub
-        if getattr(config, "quantization_config", None):  # gptq models should use float16
+        config = load_config(model_args)  # 加载模型配置（可能从魔搭社区下载）
+        # 处理GPTQ量化模型的精度设置
+        if getattr(config, "quantization_config", None):  
             quantization_config: Dict[str, Any] = getattr(config, "quantization_config", None)
             quant_method = quantization_config.get("quant_method", "")
             if quant_method == QuantizationMethod.GPTQ and model_args.infer_dtype == "auto":
-                model_args.infer_dtype = "float16"
+                model_args.infer_dtype = "float16"  # GPTQ模型默认使用float16
 
-        self.can_generate = finetuning_args.stage == "sft"
-        tokenizer_module = load_tokenizer(model_args)
-        self.tokenizer = tokenizer_module["tokenizer"]
-        self.processor = tokenizer_module["processor"]
-        self.tokenizer.padding_side = "left"
-        self.template = get_template_and_fix_tokenizer(self.tokenizer, data_args)
-        self.generating_args = generating_args.to_dict()
+        self.can_generate = finetuning_args.stage == "sft"  # 判断是否支持生成模式
+        tokenizer_module = load_tokenizer(model_args)  # 加载分词器
+        self.tokenizer = tokenizer_module["tokenizer"]  # 文本分词器
+        self.processor = tokenizer_module["processor"]  # 多模态处理器
+        self.tokenizer.padding_side = "left"  # vLLM强制左填充
+        self.template = get_template_and_fix_tokenizer(self.tokenizer, data_args)  # 获取对话模板并修复分词器
+        self.generating_args = generating_args.to_dict()  # 转换生成参数为字典格式
 
+        # 配置vLLM引擎参数
         engine_args = {
-            "model": model_args.model_name_or_path,
-            "trust_remote_code": True,
-            "download_dir": model_args.cache_dir,
-            "dtype": model_args.infer_dtype,
-            "max_model_len": model_args.vllm_maxlen,
-            "tensor_parallel_size": get_device_count() or 1,
-            "gpu_memory_utilization": model_args.vllm_gpu_util,
-            "disable_log_stats": True,
-            "disable_log_requests": True,
-            "enforce_eager": model_args.vllm_enforce_eager,
-            "enable_lora": model_args.adapter_name_or_path is not None,
-            "max_lora_rank": model_args.vllm_max_lora_rank,
+            "model": model_args.model_name_or_path,  # 模型路径
+            "trust_remote_code": True,  # 信任远程代码
+            "download_dir": model_args.cache_dir,  # 缓存目录
+            "dtype": model_args.infer_dtype,  # 推理精度
+            "max_model_len": model_args.vllm_maxlen,  # 最大模型长度
+            "tensor_parallel_size": get_device_count() or 1,  # 张量并行度
+            "gpu_memory_utilization": model_args.vllm_gpu_util,  # GPU显存利用率
+            "disable_log_stats": True,  # 禁用统计日志
+            "disable_log_requests": True,  # 禁用请求日志
+            "enforce_eager": model_args.vllm_enforce_eager,  # 强制eager模式
+            "enable_lora": model_args.adapter_name_or_path is not None,  # 启用LoRA
+            "max_lora_rank": model_args.vllm_max_lora_rank,  # 最大LoRA秩
         }
-        if isinstance(model_args.vllm_config, dict):
+        if isinstance(model_args.vllm_config, dict):  # 合并自定义vLLM配置
             engine_args.update(model_args.vllm_config)
 
+        # 处理Yi-VL视觉语言模型的特殊投影层
         if getattr(config, "is_yi_vl_derived_model", None):
             import vllm.model_executor.models.llava
-
             logger.info_rank0("Detected Yi-VL model, applying projector patch.")
             vllm.model_executor.models.llava.LlavaMultiModalProjector = LlavaMultiModalProjectorForYiVLForVLLM
 
-        self.model = AsyncLLMEngine.from_engine_args(AsyncEngineArgs(**engine_args))
+        self.model = AsyncLLMEngine.from_engine_args(AsyncEngineArgs(**engine_args))  # 创建异步引擎
+        # 配置LoRA适配器
         if model_args.adapter_name_or_path is not None:
-            self.lora_request = LoRARequest("default", 1, model_args.adapter_name_or_path[0])
+            self.lora_request = LoRARequest("default", 1, model_args.adapter_name_or_path[0])  # LoRA请求参数
         else:
             self.lora_request = None
 
     async def _generate(
         self,
-        messages: Sequence[Dict[str, str]],
-        system: Optional[str] = None,
-        tools: Optional[str] = None,
-        images: Optional[Sequence["ImageInput"]] = None,
-        videos: Optional[Sequence["VideoInput"]] = None,
+        messages: Sequence[Dict[str, str]],  # 对话历史
+        system: Optional[str] = None,  # 系统提示
+        tools: Optional[str] = None,  # 工具定义
+        images: Optional[Sequence["ImageInput"]] = None,  # 图像输入
+        videos: Optional[Sequence["VideoInput"]] = None,  # 视频输入
         **input_kwargs,
     ) -> AsyncIterator["RequestOutput"]:
-        request_id = f"chatcmpl-{uuid.uuid4().hex}"
+        request_id = f"chatcmpl-{uuid.uuid4().hex}"  # 生成唯一请求ID
+        # 处理图像占位符
         if images is not None:
             if not any(IMAGE_PLACEHOLDER in message["content"] for message in messages):
-                messages[0]["content"] = IMAGE_PLACEHOLDER * len(images) + messages[0]["content"]
+                messages[0]["content"] = IMAGE_PLACEHOLDER * len(images) + messages[0]["content"]  # 自动添加占位符
 
-        if self.template.mm_plugin.__class__.__name__ == "Qwen2vlPlugin":  # temporary solution
+        # 处理不同多模态模板的特殊标记
+        if self.template.mm_plugin.__class__.__name__ == "Qwen2vlPlugin":  # 通义千问视觉插件特殊处理
             image_str = f"<|vision_start|>{self.template.mm_plugin.image_token}<|vision_end|>"
         else:
             image_str = self.template.mm_plugin.image_token or ""
 
+        # 构建对话结构并编码
         paired_messages = [
             {"role": message["role"], "content": message["content"].replace(IMAGE_PLACEHOLDER, image_str)}
             for message in messages
-        ] + [{"role": "assistant", "content": ""}]
-        system = system or self.generating_args["default_system"]
-        prompt_ids, _ = self.template.encode_oneturn(self.tokenizer, paired_messages, system, tools)
-        prompt_length = len(prompt_ids)
+        ] + [{"role": "assistant", "content": ""}]  # 添加空助手消息
+        system = system or self.generating_args["default_system"]  # 使用默认系统提示
+        prompt_ids, _ = self.template.encode_oneturn(self.tokenizer, paired_messages, system, tools)  # 编码对话
+        prompt_length = len(prompt_ids)  # 记录prompt长度
 
-        temperature: Optional[float] = input_kwargs.pop("temperature", None)
-        top_p: Optional[float] = input_kwargs.pop("top_p", None)
-        top_k: Optional[float] = input_kwargs.pop("top_k", None)
-        num_return_sequences: int = input_kwargs.pop("num_return_sequences", 1)
-        repetition_penalty: Optional[float] = input_kwargs.pop("repetition_penalty", None)
-        length_penalty: Optional[float] = input_kwargs.pop("length_penalty", None)
-        max_length: Optional[int] = input_kwargs.pop("max_length", None)
-        max_new_tokens: Optional[int] = input_kwargs.pop("max_new_tokens", None)
-        stop: Optional[Union[str, List[str]]] = input_kwargs.pop("stop", None)
+        # 解析生成参数
+        temperature = input_kwargs.pop("temperature", None)
+        top_p = input_kwargs.pop("top_p", None)
+        top_k = input_kwargs.pop("top_k", None)
+        num_return_sequences = input_kwargs.pop("num_return_sequences", 1)
+        repetition_penalty = input_kwargs.pop("repetition_penalty", None)
+        max_length = input_kwargs.pop("max_length", None)
+        max_new_tokens = input_kwargs.pop("max_new_tokens", None)
+        stop = input_kwargs.pop("stop", None)  # 停止条件
 
-        if length_penalty is not None:
-            logger.warning_rank0("Length penalty is not supported by the vllm engine yet.")
-
-        if "max_new_tokens" in self.generating_args:
-            max_tokens = self.generating_args["max_new_tokens"]
-        elif "max_length" in self.generating_args:
-            if self.generating_args["max_length"] > prompt_length:
-                max_tokens = self.generating_args["max_length"] - prompt_length
-            else:
-                max_tokens = 1
-
+        # 计算最大生成长度
+        max_tokens = self.generating_args.get("max_new_tokens") or 1
         if max_length:
             max_tokens = max_length - prompt_length if max_length > prompt_length else 1
-
         if max_new_tokens:
             max_tokens = max_new_tokens
 
+        # 配置采样参数
         sampling_params = SamplingParams(
-            n=num_return_sequences,
-            repetition_penalty=(
-                repetition_penalty if repetition_penalty is not None else self.generating_args["repetition_penalty"]
-            )
-            or 1.0,  # repetition_penalty must > 0
-            temperature=temperature if temperature is not None else self.generating_args["temperature"],
-            top_p=(top_p if top_p is not None else self.generating_args["top_p"]) or 1.0,  # top_p must > 0
-            top_k=top_k if top_k is not None else self.generating_args["top_k"],
-            stop=stop,
-            stop_token_ids=[self.tokenizer.eos_token_id] + self.tokenizer.additional_special_tokens_ids,
-            max_tokens=max_tokens,
-            skip_special_tokens=True,
+            n=num_return_sequences,  # 生成序列数
+            repetition_penalty=repetition_penalty or self.generating_args["repetition_penalty"] or 1.0,  # 重复惩罚
+            temperature=temperature or self.generating_args["temperature"],  # 温度参数
+            top_p=(top_p or self.generating_args["top_p"]) or 1.0,  # 核心采样参数
+            top_k=top_k or self.generating_args["top_k"],  # 前k采样
+            stop=stop,  # 停止条件
+            stop_token_ids=[self.tokenizer.eos_token_id] + self.tokenizer.additional_special_tokens_ids,  # 停止token
+            max_tokens=max_tokens,  # 最大生成token数
+            skip_special_tokens=True,  # 跳过特殊token
         )
 
-        if images is not None:  # add image features
+        # 处理图像输入
+        multi_modal_data = None
+        if images is not None:
             image_data = []
             for image in images:
-                if not isinstance(image, (str, ImageObject)):
-                    raise ValueError(f"Expected image input is a path or PIL.Image, but got {type(image)}.")
-
-                if isinstance(image, str):
+                if isinstance(image, str):  # 图像路径转换为PIL.Image
                     image = Image.open(image).convert("RGB")
-
                 image_data.append(image)
+            multi_modal_data = {"image": image_data}  # 多模态数据格式
 
-            multi_modal_data = {"image": image_data}
-        else:
-            multi_modal_data = None
-
+        # 启动异步生成
         result_generator = self.model.generate(
-            {"prompt_token_ids": prompt_ids, "multi_modal_data": multi_modal_data},
-            sampling_params=sampling_params,
-            request_id=request_id,
-            lora_request=self.lora_request,
+            {"prompt_token_ids": prompt_ids, "multi_modal_data": multi_modal_data},  # 输入数据
+            sampling_params=sampling_params,  # 采样参数
+            request_id=request_id,  # 请求ID
+            lora_request=self.lora_request,  # LoRA适配器请求
         )
-        return result_generator
+        return result_generator  # 返回生成器
 
     @override
     async def chat(
@@ -202,20 +192,19 @@ class VllmEngine(BaseEngine):
     ) -> List["Response"]:
         final_output = None
         generator = await self._generate(messages, system, tools, images, videos, **input_kwargs)
-        async for request_output in generator:
-            final_output = request_output
+        async for request_output in generator:  # 等待生成完成
+            final_output = request_output  # 获取最终输出
 
         results = []
-        for output in final_output.outputs:
+        for output in final_output.outputs:  # 遍历所有生成结果
             results.append(
                 Response(
-                    response_text=output.text,
-                    response_length=len(output.token_ids),
-                    prompt_length=len(final_output.prompt_token_ids),
-                    finish_reason=output.finish_reason,
+                    response_text=output.text,  # 生成文本
+                    response_length=len(output.token_ids),  # 响应长度
+                    prompt_length=len(final_output.prompt_token_ids),  # prompt长度
+                    finish_reason=output.finish_reason,  # 停止原因
                 )
             )
-
         return results
 
     @override
@@ -228,12 +217,12 @@ class VllmEngine(BaseEngine):
         videos: Optional[Sequence["VideoInput"]] = None,
         **input_kwargs,
     ) -> AsyncGenerator[str, None]:
-        generated_text = ""
+        generated_text = ""  # 已生成文本缓存
         generator = await self._generate(messages, system, tools, images, videos, **input_kwargs)
-        async for result in generator:
-            delta_text = result.outputs[0].text[len(generated_text) :]
-            generated_text = result.outputs[0].text
-            yield delta_text
+        async for result in generator:  # 实时获取生成结果
+            delta_text = result.outputs[0].text[len(generated_text) :]  # 计算增量文本
+            generated_text = result.outputs[0].text  # 更新缓存
+            yield delta_text  # 流式返回增量内容
 
     @override
     async def get_scores(
@@ -241,4 +230,4 @@ class VllmEngine(BaseEngine):
         batch_input: List[str],
         **input_kwargs,
     ) -> List[float]:
-        raise NotImplementedError("vLLM engine does not support get_scores.")
+        raise NotImplementedError("vLLM engine does not support get_scores.")  # 明确不支持评分功能

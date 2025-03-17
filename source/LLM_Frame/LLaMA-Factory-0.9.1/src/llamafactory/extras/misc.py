@@ -55,6 +55,7 @@ logger = logging.get_logger(__name__)
 class AverageMeter:
     r"""
     Computes and stores the average and current value.
+    计算并存储平均值和当前值
     """
 
     def __init__(self):
@@ -76,6 +77,7 @@ class AverageMeter:
 def check_dependencies() -> None:
     r"""
     Checks the version of the required packages.
+    检查依赖包的版本
     """
     if os.getenv("DISABLE_VERSION_CHECK", "0").lower() in ["true", "1"]:
         logger.warning_once("Version checking has been disabled, may lead to unexpected behaviors.")
@@ -90,6 +92,7 @@ def check_dependencies() -> None:
 def count_parameters(model: "torch.nn.Module") -> Tuple[int, int]:
     r"""
     Returns the number of trainable parameters and number of all parameters in the model.
+    返回模型中可训练参数和所有参数的数量
     """
     trainable_params, all_param = 0, 0
     for param in model.parameters():
@@ -119,6 +122,7 @@ def count_parameters(model: "torch.nn.Module") -> Tuple[int, int]:
 def get_current_device() -> "torch.device":
     r"""
     Gets the current available device.
+    获取当前可用的设备
     """
     if is_torch_xpu_available():
         device = "xpu:{}".format(os.environ.get("LOCAL_RANK", "0"))
@@ -137,6 +141,7 @@ def get_current_device() -> "torch.device":
 def get_device_count() -> int:
     r"""
     Gets the number of available GPU or NPU devices.
+    获取可用的GPU或NPU设备数量
     """
     if is_torch_xpu_available():
         return torch.xpu.device_count()
@@ -151,6 +156,7 @@ def get_device_count() -> int:
 def get_logits_processor() -> "LogitsProcessorList":
     r"""
     Gets logits processor that removes NaN and Inf logits.
+    获取用于移除NaN和Inf值的logits处理器
     """
     logits_processor = LogitsProcessorList()
     logits_processor.append(InfNanRemoveLogitsProcessor())
@@ -160,6 +166,7 @@ def get_logits_processor() -> "LogitsProcessorList":
 def get_peak_memory() -> Tuple[int, int]:
     r"""
     Gets the peak memory usage for the current device (in Bytes).
+    获取当前设备的峰值内存使用量（以字节为单位）
     """
     if is_torch_npu_available():
         return torch.npu.max_memory_allocated(), torch.npu.max_memory_reserved()
@@ -172,6 +179,7 @@ def get_peak_memory() -> Tuple[int, int]:
 def has_tokenized_data(path: "os.PathLike") -> bool:
     r"""
     Checks if the path has a tokenized dataset.
+    检查指定路径是否包含已分词的数据集
     """
     return os.path.isdir(path) and len(os.listdir(path)) > 0
 
@@ -179,6 +187,7 @@ def has_tokenized_data(path: "os.PathLike") -> bool:
 def infer_optim_dtype(model_dtype: "torch.dtype") -> "torch.dtype":
     r"""
     Infers the optimal dtype according to the model_dtype and device compatibility.
+    根据模型数据类型和设备兼容性推断最优的数据类型
     """
     if _is_bf16_available and model_dtype == torch.bfloat16:
         return torch.bfloat16
@@ -191,6 +200,7 @@ def infer_optim_dtype(model_dtype: "torch.dtype") -> "torch.dtype":
 def is_gpu_or_npu_available() -> bool:
     r"""
     Checks if the GPU or NPU is available.
+    检查GPU或NPU是否可用
     """
     return is_torch_npu_available() or is_torch_cuda_available()
 
@@ -198,6 +208,7 @@ def is_gpu_or_npu_available() -> bool:
 def numpify(inputs: Union["NDArray", "torch.Tensor"]) -> "NDArray":
     r"""
     Casts a torch tensor or a numpy array to a numpy array.
+    将PyTorch张量或numpy数组转换为numpy数组
     """
     if isinstance(inputs, torch.Tensor):
         inputs = inputs.cpu()
@@ -212,6 +223,7 @@ def numpify(inputs: Union["NDArray", "torch.Tensor"]) -> "NDArray":
 def skip_check_imports() -> None:
     r"""
     Avoids flash attention import error in custom model files.
+    避免在自定义模型文件中出现flash attention导入错误
     """
     if os.environ.get("FORCE_CHECK_IMPORTS", "0").lower() not in ["true", "1"]:
         transformers.dynamic_module_utils.check_imports = get_relative_imports
@@ -220,6 +232,7 @@ def skip_check_imports() -> None:
 def torch_gc() -> None:
     r"""
     Collects GPU or NPU memory.
+    收集GPU或NPU内存
     """
     gc.collect()
     if is_torch_xpu_available():
@@ -233,6 +246,7 @@ def torch_gc() -> None:
 
 
 def try_download_model_from_other_hub(model_args: "ModelArguments") -> str:
+    """尝试从其他模型仓库下载模型"""
     if (not use_modelscope() and not use_openmind()) or os.path.exists(model_args.model_name_or_path):
         return model_args.model_name_or_path
 
@@ -259,16 +273,19 @@ def try_download_model_from_other_hub(model_args: "ModelArguments") -> str:
 
 
 def use_modelscope() -> bool:
+    """检查是否使用ModelScope仓库"""
     return os.environ.get("USE_MODELSCOPE_HUB", "0").lower() in ["true", "1"]
 
 
 def use_openmind() -> bool:
+    """检查是否使用OpenMind仓库"""
     return os.environ.get("USE_OPENMIND_HUB", "0").lower() in ["true", "1"]
 
 
 def cal_effective_tokens(effective_token_num, epoch, train_runtime) -> int:
     r"""
     calculate effective tokens.
+    计算有效token数量
     """
     result = effective_token_num * epoch / train_runtime
     return result / dist.get_world_size() if dist.is_initialized() else result

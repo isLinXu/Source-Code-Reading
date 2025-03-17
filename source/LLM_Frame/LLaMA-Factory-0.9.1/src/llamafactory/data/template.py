@@ -35,22 +35,24 @@ if TYPE_CHECKING:
 logger = logging.get_logger(__name__)
 
 
+# 模板基类
 @dataclass
 class Template:
-    format_user: "Formatter"
-    format_assistant: "Formatter"
-    format_system: "Formatter"
-    format_function: "Formatter"
-    format_observation: "Formatter"
-    format_tools: "Formatter"
-    format_separator: "Formatter"
-    format_prefix: "Formatter"
-    default_system: str
-    stop_words: List[str]
-    efficient_eos: bool
-    replace_eos: bool
-    replace_jinja_template: bool
-    mm_plugin: "BasePlugin"
+    # 各角色消息格式化器
+    format_user: "Formatter"          # 用户消息格式化器
+    format_assistant: "Formatter"     # 助手消息格式化器
+    format_system: "Formatter"        # 系统消息格式化器
+    format_function: "Formatter"      # 函数调用格式化器
+    format_observation: "Formatter"   # 观察结果格式化器
+    format_tools: "Formatter"         # 工具定义格式化器
+    format_separator: "Formatter"     # 对话轮次分隔符
+    format_prefix: "Formatter"        # 前缀格式化器
+    default_system: str               # 默认系统提示
+    stop_words: List[str]             # 停止词列表
+    efficient_eos: bool               # 是否高效添加EOS
+    replace_eos: bool                 # 是否替换原有EOS
+    replace_jinja_template: bool      # 是否替换Jinja模板
+    mm_plugin: "BasePlugin"           # 多模态插件
 
     def encode_oneturn(
         self,
@@ -61,13 +63,14 @@ class Template:
     ) -> Tuple[List[int], List[int]]:
         r"""
         Returns a single pair of token ids representing prompt and response respectively.
+        单轮对话编码：返回提示和响应的token id对
         """
         encoded_messages = self._encode(tokenizer, messages, system, tools)
         prompt_ids = []
-        for encoded_ids in encoded_messages[:-1]:
+        for encoded_ids in encoded_messages[:-1]:  # 合并除最后一条外的所有消息作为prompt
             prompt_ids += encoded_ids
 
-        answer_ids = encoded_messages[-1]
+        answer_ids = encoded_messages[-1]  # 最后一条消息作为回答
         return prompt_ids, answer_ids
 
     def encode_multiturn(
@@ -98,23 +101,25 @@ class Template:
     ) -> List[List[int]]:
         r"""
         Encodes formatted inputs to pairs of token ids.
-        Turn 0: prefix + system + query        resp
-        Turn t: sep + query                    resp
+        核心编码方法：将格式化消息转换为token id序列
         """
-        system = system or self.default_system
+        system = system or self.default_system  # 使用默认系统提示
         encoded_messages = []
         for i, message in enumerate(messages):
-            elements = []
+            elements = []  # 当前消息的组成元素
 
+            # 处理首轮消息
             if i == 0:
-                elements += self.format_prefix.apply()
+                elements += self.format_prefix.apply()  # 添加前缀
                 if system or tools:
                     tool_text = self.format_tools.apply(content=tools)[0] if tools else ""
-                    elements += self.format_system.apply(content=(system + tool_text))
+                    elements += self.format_system.apply(content=(system + tool_text))  # 系统提示+工具定义
 
+            # 添加对话轮次分隔符
             if i > 0 and i % 2 == 0:
                 elements += self.format_separator.apply()
 
+            # 根据角色选择格式化器
             if message["role"] == Role.USER.value:
                 elements += self.format_user.apply(content=message["content"], idx=str(i // 2))
             elif message["role"] == Role.ASSISTANT.value:
@@ -133,25 +138,27 @@ class Template:
     def _convert_elements_to_ids(self, tokenizer: "PreTrainedTokenizer", elements: "SLOTS") -> List[int]:
         r"""
         Converts elements to token ids.
+        将模板元素转换为token id序列
         """
         token_ids = []
         for elem in elements:
-            if isinstance(elem, str):
+            if isinstance(elem, str):  # 处理普通文本元素
                 if len(elem) != 0:
-                    token_ids += tokenizer.encode(elem, add_special_tokens=False)
-            elif isinstance(elem, dict):
-                token_ids += [tokenizer.convert_tokens_to_ids(elem.get("token"))]
-            elif isinstance(elem, set):
+                    token_ids += tokenizer.encode(elem, add_special_tokens=False)  # 编码文本不添加特殊token
+            elif isinstance(elem, dict):  # 处理特殊token字典
+                token_ids += [tokenizer.convert_tokens_to_ids(elem.get("token"))]  # 直接转换token为id
+            elif isinstance(elem, set):  # 处理预定义token集合
                 if "bos_token" in elem and tokenizer.bos_token_id is not None:
-                    token_ids += [tokenizer.bos_token_id]
+                    token_ids += [tokenizer.bos_token_id]  # 添加BOS token
                 elif "eos_token" in elem and tokenizer.eos_token_id is not None:
-                    token_ids += [tokenizer.eos_token_id]
+                    token_ids += [tokenizer.eos_token_id]  # 添加EOS token
             else:
                 raise ValueError(f"Input must be string, set[str] or dict[str, str], got {type(elem)}")
 
-        return token_ids
+        return token_ids  # 返回合并后的token id序列
 
 
+# Llama2专用模板
 @dataclass
 class Llama2Template(Template):
     @override
@@ -166,6 +173,7 @@ class Llama2Template(Template):
         Encodes formatted inputs to pairs of token ids.
         Turn 0: prefix + system + query        resp
         Turn t: sep + query                    resp
+        Llama2专用编码逻辑：首轮包含系统提示，后续轮次添加分隔符
         """
         system = system or self.default_system
         encoded_messages = []
@@ -198,86 +206,71 @@ class Llama2Template(Template):
         return encoded_messages
 
 
-TEMPLATES: Dict[str, "Template"] = {}
+# 模板注册字典（全局单例）
+TEMPLATES: Dict[str, "Template"] = {}  # 存储所有注册的对话模板
 
 
+# 模板注册函数
 def _register_template(
     name: str,
-    format_user: Optional["Formatter"] = None,
-    format_assistant: Optional["Formatter"] = None,
-    format_system: Optional["Formatter"] = None,
-    format_function: Optional["Formatter"] = None,
-    format_observation: Optional["Formatter"] = None,
-    format_tools: Optional["Formatter"] = None,
-    format_separator: Optional["Formatter"] = None,
-    format_prefix: Optional["Formatter"] = None,
-    default_system: str = "",
-    stop_words: Sequence[str] = [],
-    efficient_eos: bool = False,
-    replace_eos: bool = False,
-    replace_jinja_template: bool = True,
-    mm_plugin: "BasePlugin" = get_mm_plugin(name="base"),
+    format_user: Optional["Formatter"] = None,  # 用户消息模板
+    format_assistant: Optional["Formatter"] = None,  # 助手消息模板
+    format_system: Optional["Formatter"] = None,  # 系统提示模板
+    format_function: Optional["Formatter"] = None,  # 函数调用模板
+    format_observation: Optional["Formatter"] = None,  # 观察结果模板
+    format_tools: Optional["Formatter"] = None,  # 工具定义模板
+    format_separator: Optional["Formatter"] = None,  # 轮次分隔符
+    format_prefix: Optional["Formatter"] = None,  # 前缀模板
+    default_system: str = "",  # 默认系统提示
+    stop_words: Sequence[str] = [],  # 停止词列表
+    efficient_eos: bool = False,  # 是否优化EOS添加
+    replace_eos: bool = False,  # 是否替换原有EOS
+    replace_jinja_template: bool = True,  # 是否替换Jinja模板
+    mm_plugin: "BasePlugin" = get_mm_plugin(name="base"),  # 多模态插件
 ) -> None:
     r"""
     Registers a chat template.
-
-    To add the following chat template:
-    ```
-    [HUMAN]:
-    user prompt here
-    [AI]:
-    model response here
-
-    [HUMAN]:
-    user prompt here
-    [AI]:
-    model response here
-    ```
-
-    The corresponding code should be:
-    ```
-    _register_template(
-        name="custom",
-        format_user=StringFormatter(slots=["[HUMAN]:\n{{content}}\n[AI]:\n"]),
-        format_separator=EmptyFormatter(slots=["\n\n"]),
-        efficient_eos=True,
-    )
-    ```
+    注册对话模板到全局TEMPLATES字典
     """
-    eos_slots = [] if efficient_eos else [{"eos_token"}]
-    template_class = Llama2Template if name.startswith("llama2") else Template
-    default_user_formatter = StringFormatter(slots=["{{content}}"])
-    default_assistant_formatter = StringFormatter(slots=["{{content}}"] + eos_slots)
-    default_function_formatter = FunctionFormatter(slots=eos_slots, tool_format="default")
-    default_tool_formatter = ToolFormatter(tool_format="default")
-    default_separator_formatter = EmptyFormatter()
-    default_prefix_formatter = EmptyFormatter()
+    # 设置默认格式化器
+    eos_slots = [] if efficient_eos else [{"eos_token"}]  # 根据是否高效EOS决定插槽配置
+    template_class = Llama2Template if name.startswith("llama2") else Template  # 根据名称选择模板类
+    
+    # 定义各角色默认格式化器
+    default_user_formatter = StringFormatter(slots=["{{content}}"])  # 用户消息默认格式
+    default_assistant_formatter = StringFormatter(slots=["{{content}}"] + eos_slots)  # 助手消息带EOS
+    default_function_formatter = FunctionFormatter(slots=eos_slots, tool_format="default")  # 函数调用格式化
+    default_tool_formatter = ToolFormatter(tool_format="default")  # 工具定义格式化
+    
+    # 注册模板到全局字典
     TEMPLATES[name] = template_class(
-        format_user=format_user or default_user_formatter,
+        format_user=format_user or default_user_formatter,  # 优先使用自定义格式化器
         format_assistant=format_assistant or default_assistant_formatter,
         format_system=format_system or default_user_formatter,
         format_function=format_function or default_function_formatter,
         format_observation=format_observation or format_user or default_user_formatter,
         format_tools=format_tools or default_tool_formatter,
-        format_separator=format_separator or default_separator_formatter,
-        format_prefix=format_prefix or default_prefix_formatter,
+        format_separator=format_separator or EmptyFormatter(),
+        format_prefix=format_prefix or EmptyFormatter(),
         default_system=default_system,
         stop_words=stop_words,
         efficient_eos=efficient_eos,
         replace_eos=replace_eos,
         replace_jinja_template=replace_jinja_template,
-        mm_plugin=mm_plugin,
+        mm_plugin=mm_plugin,  # 注入多模态处理插件
     )
 
 
+# EOS token处理函数
 def _add_or_replace_eos_token(tokenizer: "PreTrainedTokenizer", eos_token: str) -> None:
+    r"""
+    Adds or replaces the eos token in the tokenizer.
+    添加或替换分词器的EOS token
+    """
     is_added = tokenizer.eos_token_id is None
-    num_added_tokens = tokenizer.add_special_tokens({"eos_token": eos_token})
-
-    if is_added:
-        logger.info_rank0(f"Add eos token: {tokenizer.eos_token}")
-    else:
-        logger.info_rank0(f"Replace eos token: {tokenizer.eos_token}")
+    num_added_tokens = tokenizer.add_special_tokens({"eos_token": eos_token})  # 添加特殊token
+    # 记录操作日志
+    logger.info_rank0(f"Add eos token: {tokenizer.eos_token}" if is_added else f"Replace eos token: {tokenizer.eos_token}")
 
     if num_added_tokens > 0:
         logger.warning_rank0("New tokens have been added, make sure `resize_vocab` is True.")
@@ -287,26 +280,32 @@ def _jinja_escape(content: str) -> str:
     return content.replace("'", r"\'")
 
 
+# Jinja模板转换函数
 def _convert_slots_to_jinja(slots: "SLOTS", tokenizer: "PreTrainedTokenizer", placeholder: str = "content") -> str:
+    r"""
+    Converts slot configuration to jinja template string.
+    将插槽配置转换为Jinja模板字符串
+    """
     slot_items = []
     for slot in slots:
         if isinstance(slot, str):
-            slot_pieces = slot.split("{{content}}")
-            if slot_pieces[0]:
-                slot_items.append("'" + _jinja_escape(slot_pieces[0]) + "'")
-            if len(slot_pieces) > 1:
+            # 处理包含{{content}}的字符串插槽
+            parts = slot.split("{{content}}")
+            if parts[0]:
+                slot_items.append("'" + _jinja_escape(parts[0]) + "'")  # 转义单引号
+            if len(parts) > 1:
                 slot_items.append(placeholder)
-                if slot_pieces[1]:
-                    slot_items.append("'" + _jinja_escape(slot_pieces[1]) + "'")
-        elif isinstance(slot, set):  # do not use {{ eos_token }} since it may be replaced
-            if "bos_token" in slot and tokenizer.bos_token_id is not None:
+                if parts[1]:
+                    slot_items.append("'" + _jinja_escape(parts[1]) + "'")
+        elif isinstance(slot, set):  # 处理特殊token集合
+            if "bos_token" in slot:
                 slot_items.append("'" + tokenizer.bos_token + "'")
-            elif "eos_token" in slot and tokenizer.eos_token_id is not None:
+            elif "eos_token" in slot:
                 slot_items.append("'" + tokenizer.eos_token + "'")
         elif isinstance(slot, dict):
             raise ValueError("Dict is not supported.")
 
-    return " + ".join(slot_items)
+    return " + ".join(slot_items)  # 拼接为Jinja表达式
 
 
 def _get_jinja_template(template: "Template", tokenizer: "PreTrainedTokenizer") -> str:
@@ -355,56 +354,66 @@ def _get_jinja_template(template: "Template", tokenizer: "PreTrainedTokenizer") 
 def get_template_and_fix_tokenizer(tokenizer: "PreTrainedTokenizer", data_args: "DataArguments") -> "Template":
     r"""
     Gets chat template and fixes the tokenizer.
+    获取对话模板并修复分词器配置
     """
+    # 获取模板实例
     if data_args.template is None:
-        template = TEMPLATES["empty"]  # placeholder
+        template = TEMPLATES["empty"]  # 使用占位模板
     else:
         template = TEMPLATES.get(data_args.template, None)
         if template is None:
-            raise ValueError(f"Template {data_args.template} does not exist.")
+            raise ValueError(f"Template {data_args.template} does not exist.")  # 模板不存在时报错
 
+    # 多模态插件版本检查
     if template.mm_plugin.__class__.__name__ != "BasePlugin":
         require_version("transformers>=4.45.0", "To fix: pip install transformers>=4.45.0")
 
+    # 训练模式兼容性检查
     if data_args.train_on_prompt and template.efficient_eos:
         raise ValueError("Current template does not support `train_on_prompt`.")
 
+    # 工具格式处理
     if data_args.tool_format is not None:
         logger.info_rank0(f"Using tool format: {data_args.tool_format}.")
         eos_slots = [] if template.efficient_eos else [{"eos_token"}]
-        template.format_function = FunctionFormatter(slots=eos_slots, tool_format=data_args.tool_format)
-        template.format_tools = ToolFormatter(tool_format=data_args.tool_format)
+        template.format_function = FunctionFormatter(slots=eos_slots, tool_format=data_args.tool_format)  # 动态更新函数格式化器
+        template.format_tools = ToolFormatter(tool_format=data_args.tool_format)  # 更新工具定义格式化器
 
+    # EOS token替换逻辑
     stop_words = template.stop_words
     if template.replace_eos:
         if not stop_words:
             raise ValueError("Stop words are required to replace the EOS token.")
 
-        _add_or_replace_eos_token(tokenizer, eos_token=stop_words[0])
-        stop_words = stop_words[1:]
+        _add_or_replace_eos_token(tokenizer, eos_token=stop_words[0])  # 用第一个停止词替换EOS
+        stop_words = stop_words[1:]  # 剩余停止词保留
 
+    # 确保分词器有EOS token
     if tokenizer.eos_token_id is None:
-        _add_or_replace_eos_token(tokenizer, eos_token="<|endoftext|>")
+        _add_or_replace_eos_token(tokenizer, eos_token="<|endoftext|>")  # 默认使用GPT风格EOS
 
+    # 设置pad token
     if tokenizer.pad_token_id is None:
-        tokenizer.pad_token = tokenizer.eos_token
+        tokenizer.pad_token = tokenizer.eos_token  # 使用EOS作为pad token
         logger.info_rank0(f"Add pad token: {tokenizer.pad_token}")
 
+    # 添加停止词到特殊token
     if stop_words:
         num_added_tokens = tokenizer.add_special_tokens(
             dict(additional_special_tokens=stop_words), replace_additional_special_tokens=False
         )
         logger.info_rank0("Add {} to stop words.".format(",".join(stop_words)))
         if num_added_tokens > 0:
-            logger.warning_rank0("New tokens have been added, make sure `resize_vocab` is True.")
+            logger.warning_rank0("New tokens have been added, make sure `resize_vocab` is True.")  # 词汇表扩展警告
 
+    # 设置Jinja模板
     if tokenizer.chat_template is None or template.replace_jinja_template:
         try:
-            tokenizer.chat_template = _get_jinja_template(template, tokenizer)
+            tokenizer.chat_template = _get_jinja_template(template, tokenizer)  # 生成并注入Jinja模板
         except ValueError as e:
-            logger.info_rank0(f"Cannot add this chat template to tokenizer: {e}.")
+            logger.info_rank0(f"Cannot add this chat template to tokenizer: {e}.")  # 模板注入失败日志
 
-    return template
+    return template  # 返回配置好的模板实例
 
 
 _register_template(

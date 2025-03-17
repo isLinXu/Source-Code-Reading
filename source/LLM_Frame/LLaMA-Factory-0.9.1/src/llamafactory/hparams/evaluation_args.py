@@ -23,40 +23,42 @@ from datasets import DownloadMode
 class EvaluationArguments:
     r"""
     Arguments pertaining to specify the evaluation parameters.
+    用于指定评估参数的参数类。
     """
 
     task: str = field(
-        metadata={"help": "Name of the evaluation task."},
+        metadata={"help": "Name of the evaluation task. (评估任务的名称)"},
     )
     task_dir: str = field(
         default="evaluation",
-        metadata={"help": "Path to the folder containing the evaluation datasets."},
+        metadata={"help": "Path to the folder containing the evaluation datasets. (包含评估数据集的文件夹路径)"},
     )
     batch_size: int = field(
         default=4,
-        metadata={"help": "The batch size per GPU for evaluation."},
+        metadata={"help": "The batch size per GPU for evaluation. (评估时每个GPU的批处理大小)"},
     )
     seed: int = field(
         default=42,
-        metadata={"help": "Random seed to be used with data loaders."},
+        metadata={"help": "Random seed to be used with data loaders. (用于数据加载器的随机种子)"},
     )
     lang: Literal["en", "zh"] = field(
         default="en",
-        metadata={"help": "Language used at evaluation."},
+        metadata={"help": "Language used at evaluation. (评估使用的语言)"},
     )
     n_shot: int = field(
         default=5,
-        metadata={"help": "Number of examplars for few-shot learning."},
+        metadata={"help": "Number of examplars for few-shot learning. (小样本学习的样例数量)"},
     )
     save_dir: Optional[str] = field(
         default=None,
-        metadata={"help": "Path to save the evaluation results."},
+        metadata={"help": "Path to save the evaluation results. (保存评估结果的路径)"},
     )
     download_mode: DownloadMode = field(
         default=DownloadMode.REUSE_DATASET_IF_EXISTS,
-        metadata={"help": "Download mode used for the evaluation datasets."},
+        metadata={"help": "Download mode used for the evaluation datasets. (用于评估数据集的下载模式)"},
     )
 
     def __post_init__(self):
+        # 检查保存目录是否已存在，如果存在则抛出错误
         if self.save_dir is not None and os.path.exists(self.save_dir):
-            raise ValueError("`save_dir` already exists, use another one.")
+            raise ValueError("`save_dir` already exists, use another one. (保存目录已存在，请使用另一个目录)")
