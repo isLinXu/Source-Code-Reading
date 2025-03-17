@@ -1,0 +1,5 @@
+[submodule "inference/vllm"]
+	path = inference/vllm
+	url = https://github.com/quinnrong94/vllm.git
+	branch = dev_hunyuan
+	ignore = dirty
