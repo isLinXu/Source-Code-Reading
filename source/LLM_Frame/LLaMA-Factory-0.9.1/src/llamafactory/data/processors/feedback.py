@@ -44,15 +44,16 @@ def _encode_feedback_example(
     processor: Optional["ProcessorMixin"],
     cutoff_len: int,
 ) -> Tuple[List[int], List[int], List[int], List[int], bool]:
-    if response[0]["content"]:  # desired example
-        kto_tag = True
-        messages = prompt + [response[0]]
-    else:  # undesired example
+    """处理单个反馈样本的编码逻辑"""
+    if response[0]["content"]:  # 期望样本（desired）
+        kto_tag = True  # 标记为正向样本
+        messages = prompt + [response[0]]  # 组合消息
+    else:  # 非期望样本（undesired）
         kto_tag = False
         messages = prompt + [response[1]]
 
     if kl_response[0]["content"]:
-        kl_messages = prompt + [kl_response[0]]
+        kl_messages = prompt + [kl_response[0]]  # 组合KL参考消息
     else:
         kl_messages = prompt + [kl_response[1]]
 
@@ -89,7 +90,7 @@ def preprocess_feedback_dataset(
     processor: Optional["ProcessorMixin"],
     data_args: "DataArguments",
 ) -> Dict[str, List[Any]]:
-    # create unrelated input-output pairs for estimating the KL term by flipping the matched pairs
+    """预处理反馈数据集的主函数"""
     kl_response = examples["_response"][::-1]
     model_inputs = defaultdict(list)
     for i in range(len(examples["_prompt"])):
