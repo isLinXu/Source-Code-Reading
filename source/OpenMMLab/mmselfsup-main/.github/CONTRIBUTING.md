@@ -1,0 +1,1 @@
+We appreciate all contributions to improve MMSelfSup. Please refer to [Contribution Guids](https://mmselfsup.readthedocs.io/en/dev-1.x/notes/contribution_guide.html) for more details about the contributing guideline.
