@@ -12,16 +12,19 @@ from detectron2.modeling import build_model
 class _ModelZooUrls(object):
     """
     Mapping from names to officially released Detectron2 pre-trained models.
+    模型预训练权重URL映射表（内部类）：
+    - 维护官方发布的预训练模型下载地址
+    - 按任务类型和模型架构分类存储
     """
 
-    S3_PREFIX = "https://dl.fbaipublicfiles.com/detectron2/"
+    S3_PREFIX = "https://dl.fbaipublicfiles.com/detectron2/"  # Facebook官方模型存储前缀
 
-    # format: {config_path.yaml} -> model_id/model_final_{commit}.pkl
+    # 配置路径到模型文件的映射字典（约150+个模型配置）
     CONFIG_PATH_TO_URL_SUFFIX = {
-        # COCO Detection with Faster R-CNN
-        "COCO-Detection/faster_rcnn_R_50_C4_1x": "137257644/model_final_721ade.pkl",
-        "COCO-Detection/faster_rcnn_R_50_DC5_1x": "137847829/model_final_51d356.pkl",
-        "COCO-Detection/faster_rcnn_R_50_FPN_1x": "137257794/model_final_b275ba.pkl",
+        # COCO目标检测模型（Faster R-CNN系列）
+        "COCO-Detection/faster_rcnn_R_50_C4_1x": "137257644/model_final_721ade.pkl",  # ResNet50-C4骨干网络
+        "COCO-Detection/faster_rcnn_R_50_DC5_1x": "137847829/model_final_51d356.pkl",  # Dilated C5结构
+        "COCO-Detection/faster_rcnn_R_50_FPN_1x": "137257794/model_final_b275ba.pkl",  # FPN特征金字塔
         "COCO-Detection/faster_rcnn_R_50_C4_3x": "137849393/model_final_f97cb7.pkl",
         "COCO-Detection/faster_rcnn_R_50_DC5_3x": "137849425/model_final_68d202.pkl",
         "COCO-Detection/faster_rcnn_R_50_FPN_3x": "137849458/model_final_280758.pkl",
@@ -49,7 +52,7 @@ class _ModelZooUrls(object):
         "COCO-InstanceSegmentation/mask_rcnn_R_101_FPN_3x": "138205316/model_final_a3ec72.pkl",
         "COCO-InstanceSegmentation/mask_rcnn_X_101_32x8d_FPN_3x": "139653917/model_final_2d9806.pkl",  # noqa
         # New baselines using Large-Scale Jitter and Longer Training Schedule
-        "new_baselines/mask_rcnn_R_50_FPN_100ep_LSJ": "42047764/model_final_bb69de.pkl",
+        "new_baselines/mask_rcnn_R_50_FPN_100ep_LSJ": "42047764/model_final_bb69de.pkl",  # 100 epoch训练
         "new_baselines/mask_rcnn_R_50_FPN_200ep_LSJ": "42047638/model_final_89a8d3.pkl",
         "new_baselines/mask_rcnn_R_50_FPN_400ep_LSJ": "42019571/model_final_14d201.pkl",
         "new_baselines/mask_rcnn_R_101_FPN_100ep_LSJ": "42025812/model_final_4f7b58.pkl",
@@ -98,116 +101,89 @@ class _ModelZooUrls(object):
     @staticmethod
     def query(config_path: str) -> Optional[str]:
         """
+        查询模型下载地址的核心方法
         Args:
-            config_path: relative config filename
+            config_path: 配置文件的相对路径（不带扩展名）
         """
-        name = config_path.replace(".yaml", "").replace(".py", "")
+        name = config_path.replace(".yaml", "").replace(".py", "")  # 统一处理不同扩展名
         if name in _ModelZooUrls.CONFIG_PATH_TO_URL_SUFFIX:
             suffix = _ModelZooUrls.CONFIG_PATH_TO_URL_SUFFIX[name]
-            return _ModelZooUrls.S3_PREFIX + name + "/" + suffix
+            return _ModelZooUrls.S3_PREFIX + name + "/" + suffix  # 拼接完整URL
         return None
 
 
 def get_checkpoint_url(config_path):
     """
-    Returns the URL to the model trained using the given config
-
+    获取预训练模型URL的公开接口
     Args:
-        config_path (str): config file name relative to detectron2's "configs/"
-            directory, e.g., "COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_1x.yaml"
-
-    Returns:
-        str: a URL to the model
+        config_path: 配置路径（如"COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_1x.yaml"）
     """
     url = _ModelZooUrls.query(config_path)
     if url is None:
-        raise RuntimeError("Pretrained model for {} is not available!".format(config_path))
+        raise RuntimeError(f"未找到 {config_path} 的预训练模型！")  # 异常处理
     return url
 
 
 def get_config_file(config_path):
     """
-    Returns path to a builtin config file.
-
+    获取内置配置文件的真实路径
     Args:
-        config_path (str): config file name relative to detectron2's "configs/"
-            directory, e.g., "COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_1x.yaml"
-
-    Returns:
-        str: the real path to the config file.
+        config_path: 配置文件的相对路径（基于detectron2/configs/目录）
     """
+    # 通过pkg_resources定位包内配置文件
     cfg_file = pkg_resources.resource_filename(
         "detectron2.model_zoo", os.path.join("configs", config_path)
     )
     if not os.path.exists(cfg_file):
-        raise RuntimeError("{} not available in Model Zoo!".format(config_path))
+        raise RuntimeError(f"模型库中未找到 {config_path}！")  # 文件存在性验证
     return cfg_file
 
 
 def get_config(config_path, trained: bool = False):
     """
-    Returns a config object for a model in model zoo.
-
+    加载模型配置的核心方法
     Args:
-        config_path (str): config file name relative to detectron2's "configs/"
-            directory, e.g., "COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_1x.yaml"
-        trained (bool): If True, will set ``MODEL.WEIGHTS`` to trained model zoo weights.
-            If False, the checkpoint specified in the config file's ``MODEL.WEIGHTS`` is used
-            instead; this will typically (though not always) initialize a subset of weights using
-            an ImageNet pre-trained model, while randomly initializing the other weights.
-
-    Returns:
-        CfgNode or omegaconf.DictConfig: a config object
+        trained: 是否加载预训练权重（True时自动设置MODEL.WEIGHTS）
     """
     cfg_file = get_config_file(config_path)
-    if cfg_file.endswith(".yaml"):
-        cfg = get_cfg()
-        cfg.merge_from_file(cfg_file)
+    if cfg_file.endswith(".yaml"):  # 传统CfgNode配置
+        cfg = get_cfg()  # 创建默认配置对象
+        cfg.merge_from_file(cfg_file)  # 合并配置文件
         if trained:
-            cfg.MODEL.WEIGHTS = get_checkpoint_url(config_path)
+            cfg.MODEL.WEIGHTS = get_checkpoint_url(config_path)  # 注入预训练权重路径
         return cfg
-    elif cfg_file.endswith(".py"):
-        cfg = LazyConfig.load(cfg_file)
+    elif cfg_file.endswith(".py"):  # LazyConfig新格式
+        cfg = LazyConfig.load(cfg_file)  # 动态加载配置
         if trained:
             url = get_checkpoint_url(config_path)
-            if "train" in cfg and "init_checkpoint" in cfg.train:
+            if "train" in cfg and "init_checkpoint" in cfg.train:  # 兼容新配置格式
                 cfg.train.init_checkpoint = url
             else:
-                raise NotImplementedError
+                raise NotImplementedError("新版配置格式不支持预训练权重自动加载")
         return cfg
 
 
 def get(config_path, trained: bool = False, device: Optional[str] = None):
     """
-    Get a model specified by relative path under Detectron2's official ``configs/`` directory.
-
+    一站式获取模型实例的入口函数
     Args:
-        config_path (str): config file name relative to detectron2's "configs/"
-            directory, e.g., "COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_1x.yaml"
-        trained (bool): see :func:`get_config`.
-        device (str or None): overwrite the device in config, if given.
-
-    Returns:
-        nn.Module: a detectron2 model. Will be in training mode.
-
-    Example:
-    ::
-        from detectron2 import model_zoo
-        model = model_zoo.get("COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_1x.yaml", trained=True)
+        device: 指定运行设备（自动检测GPU可用性）
     """
     cfg = get_config(config_path, trained)
+    # 自动设备检测逻辑
     if device is None and not torch.cuda.is_available():
-        device = "cpu"
+        device = "cpu"  # 无GPU时自动回退到CPU
     if device is not None and isinstance(cfg, CfgNode):
-        cfg.MODEL.DEVICE = device
+        cfg.MODEL.DEVICE = device  # 更新设备配置
 
-    if isinstance(cfg, CfgNode):
-        model = build_model(cfg)
-        DetectionCheckpointer(model).load(cfg.MODEL.WEIGHTS)
-    else:
-        model = instantiate(cfg.model)
+    # 分类型构建模型
+    if isinstance(cfg, CfgNode):  # 传统配置方式
+        model = build_model(cfg)  # 通过build_model构建模型结构
+        DetectionCheckpointer(model).load(cfg.MODEL.WEIGHTS)  # 加载预训练权重
+    else:  # LazyConfig方式
+        model = instantiate(cfg.model)  # 动态实例化模型
         if device is not None:
-            model = model.to(device)
-        if "train" in cfg and "init_checkpoint" in cfg.train:
+            model = model.to(device)  # 转移设备
+        if "train" in cfg and "init_checkpoint" in cfg.train:  # 加载初始化权重
             DetectionCheckpointer(model).load(cfg.train.init_checkpoint)
-    return model
+    return model  # 返回训练就绪的模型

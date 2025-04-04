@@ -20,14 +20,20 @@ Registered object must return instance of :class:`Backbone`.
 def build_backbone(cfg, input_shape=None):
     """
     Build a backbone from `cfg.MODEL.BACKBONE.NAME`.
+    从配置文件中的MODEL.BACKBONE.NAME构建backbone网络
 
     Returns:
         an instance of :class:`Backbone`
+        返回一个Backbone类的实例
     """
+    # 如果没有指定输入形状，则根据配置文件中的像素均值通道数创建默认的输入形状
     if input_shape is None:
         input_shape = ShapeSpec(channels=len(cfg.MODEL.PIXEL_MEAN))
 
+    # 从配置文件中获取backbone的名称
     backbone_name = cfg.MODEL.BACKBONE.NAME
+    # 通过BACKBONE_REGISTRY注册表获取对应的backbone构建函数，并传入配置和输入形状来构建backbone实例
     backbone = BACKBONE_REGISTRY.get(backbone_name)(cfg, input_shape)
+    # 确保返回的实例是Backbone类型
     assert isinstance(backbone, Backbone)
     return backbone

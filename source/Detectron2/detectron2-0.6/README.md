@@ -1,4 +1,4 @@
-<img src=".github/Detectron2-Logo-Horz.svg" width="300" >
+bao<img src=".github/Detectron2-Logo-Horz.svg" width="300" >
 
 Detectron2 is Facebook AI Research's next generation library
 that provides state-of-the-art detection and segmentation algorithms.
@@ -55,3 +55,48 @@ If you use Detectron2 in your research or wish to refer to the baseline results 
   year =         {2019}
 }
 ```
+
+graph TD
+    A[detectron2-0.6] --> B[.circleci]
+    A --> C[.github]
+    A --> D[configs]
+    A --> E[detectron2]
+    A --> F[docker]
+    A --> G[projects]
+    A --> H[tools]
+    A --> I[datasets]
+    A --> J[demo]
+    A --> K[dev]
+    A --> L[docs]
+    A --> M[tests]
+    
+    B --> B1[config.yml]
+    
+    C --> C1[CODE_OF_CONDUCT.md]
+    C --> C2[CONTRIBUTING.md]
+    C --> C3[ISSUE_TEMPLATE]
+    C --> C4[workflows]
+    
+    D --> D1[Base-RCNN-C4.yaml]
+    D --> D2[Base-RCNN-FPN.yaml]
+    D --> D3[COCO-Detection]
+    D --> D4[COCO-InstanceSegmentation]
+    D --> D5[COCO-Keypoints]
+    D --> D6[COCO-PanopticSegmentation]
+    D --> D7[Cityscapes]
+    D --> D8[LVISv0.5-InstanceSegmentation]
+    D --> D9[PascalVOC-Detection]
+    D --> D10[new_baselines]
+    
+    E --> E1[checkpoint]
+    E --> E2[config]
+    E --> E3[data]
+    E --> E4[engine]
+    E --> E5[evaluation]
+    E --> E6[export]
+    E --> E7[layers]
+    E --> E8[modeling]
+    E --> E9[model_zoo]
+    E --> E10[solver]
+    E --> E11[structures]
+    E --> E12[utils]

@@ -16,6 +16,7 @@ from llamafactory.eval.template import get_eval_template
 
 
 def test_eval_template_en():
+    # 支持集
     support_set = [
         {
             "question": "Fewshot question",
@@ -26,6 +27,8 @@ def test_eval_template_en():
             "answer": "B",
         }
     ]
+
+    # 示例
     example = {
         "question": "Target question",
         "A": "Target1",
@@ -34,9 +37,16 @@ def test_eval_template_en():
         "D": "Target4",
         "answer": "C",
     }
+
+    # 获取评估模板
     template = get_eval_template(name="en")
+
+    # 格式化示例
     messages = template.format_example(example, support_set=support_set, subject_name="SubName")
+
+    # 断言消息列表是否符合预期
     assert messages == [
+        # 用户消息，包含支持集的问题和选项
         {
             "role": "user",
             "content": (
@@ -44,13 +54,17 @@ def test_eval_template_en():
                 "Fewshot question\nA. Fewshot1\nB. Fewshot2\nC. Fewshot3\nD. Fewshot4\nAnswer:"
             ),
         },
+        # 助手消息，包含支持集的答案
         {"role": "assistant", "content": "B"},
+        # 用户消息，包含示例的问题和选项
         {
             "role": "user",
             "content": "Target question\nA. Target1\nB. Target2\nC. Target3\nD. Target4\nAnswer:",
         },
+        # 助手消息，包含示例的答案
         {"role": "assistant", "content": "C"},
     ]
+
 
 
 def test_eval_template_zh():

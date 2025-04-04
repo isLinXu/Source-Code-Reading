@@ -184,27 +184,39 @@ def get_lvis_instances_meta(dataset_name):
 
 
 def _get_lvis_instances_meta_v0_5():
+    # 确保LVIS v0.5版本的类别数量正确
     assert len(LVIS_V0_5_CATEGORIES) == 1230
+    # 获取所有类别的ID
     cat_ids = [k["id"] for k in LVIS_V0_5_CATEGORIES]
+    # 确保类别ID是连续的，从1开始到类别总数
     assert min(cat_ids) == 1 and max(cat_ids) == len(
         cat_ids
     ), "Category ids are not in [1, #categories], as expected"
     # Ensure that the category list is sorted by id
+    # 确保类别列表按ID排序
     lvis_categories = sorted(LVIS_V0_5_CATEGORIES, key=lambda x: x["id"])
+    # 使用每个类别的第一个同义词作为类别名称
     thing_classes = [k["synonyms"][0] for k in lvis_categories]
+    # 构建元数据字典
     meta = {"thing_classes": thing_classes}
     return meta
 
 
 def _get_lvis_instances_meta_v1():
+    # 确保LVIS v1版本的类别数量正确
     assert len(LVIS_V1_CATEGORIES) == 1203
+    # 获取所有类别的ID
     cat_ids = [k["id"] for k in LVIS_V1_CATEGORIES]
+    # 确保类别ID是连续的，从1开始到类别总数
     assert min(cat_ids) == 1 and max(cat_ids) == len(
         cat_ids
     ), "Category ids are not in [1, #categories], as expected"
     # Ensure that the category list is sorted by id
+    # 确保类别列表按ID排序
     lvis_categories = sorted(LVIS_V1_CATEGORIES, key=lambda x: x["id"])
+    # 使用每个类别的第一个同义词作为类别名称
     thing_classes = [k["synonyms"][0] for k in lvis_categories]
+    # 构建元数据字典
     meta = {"thing_classes": thing_classes}
     return meta
 
@@ -212,29 +224,46 @@ def _get_lvis_instances_meta_v1():
 if __name__ == "__main__":
     """
     Test the LVIS json dataset loader.
+    测试LVIS json数据集加载器。
 
     Usage:
+    用法：
         python -m detectron2.data.datasets.lvis \
             path/to/json path/to/image_root dataset_name vis_limit
     """
+    # 导入必要的系统和数据处理库
     import sys
     import numpy as np
     from detectron2.utils.logger import setup_logger
     from PIL import Image
-    import detectron2.data.datasets  # noqa # add pre-defined metadata
+    import detectron2.data.datasets  # noqa # add pre-defined metadata  # 导入预定义的元数据
     from detectron2.utils.visualizer import Visualizer
 
+    # 初始化日志记录器
     logger = setup_logger(name=__name__)
+    # 从命令行参数获取数据集元数据
     meta = MetadataCatalog.get(sys.argv[3])
 
+    # 使用命令行参数加载LVIS格式的数据集
+    # sys.argv[1]: json标注文件路径
+    # sys.argv[2]: 图像根目录路径
+    # sys.argv[3]: 数据集名称
     dicts = load_lvis_json(sys.argv[1], sys.argv[2], sys.argv[3])
-    logger.info("Done loading {} samples.".format(len(dicts)))
+    logger.info("Done loading {} samples.".format(len(dicts)))  # 记录加载的样本数量
 
+    # 创建可视化结果保存目录
     dirname = "lvis-data-vis"
-    os.makedirs(dirname, exist_ok=True)
+    os.makedirs(dirname, exist_ok=True)  # 如果目录不存在则创建
+    # 遍历指定数量的数据集样本进行可视化
+    # sys.argv[4]: 要可视化的样本数量
     for d in dicts[: int(sys.argv[4])]:
+        # 读取图像并转换为numpy数组
         img = np.array(Image.open(d["file_name"]))
+        # 创建可视化器实例，传入图像和元数据
         visualizer = Visualizer(img, metadata=meta)
+        # 绘制数据集字典中的标注信息
         vis = visualizer.draw_dataset_dict(d)
+        # 构建输出文件路径
         fpath = os.path.join(dirname, os.path.basename(d["file_name"]))
+        # 保存可视化结果
         vis.save(fpath)

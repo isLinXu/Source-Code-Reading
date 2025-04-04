@@ -36,11 +36,27 @@ EXPECTED_RESPONSE = "_rho"
 
 
 def test_chat():
+    # 创建ChatModel实例
     chat_model = ChatModel(INFER_ARGS)
+
+    # 调用chat方法并断言第一个响应的文本等于预期响应
     assert chat_model.chat(MESSAGES)[0].response_text == EXPECTED_RESPONSE
 
 
+
 def test_stream_chat():
+    """
+    测试流式聊天功能。
+
+    Args:
+        无
+
+    Returns:
+        无
+
+    Raises:
+        AssertionError: 如果响应与预期结果不匹配
+    """
     chat_model = ChatModel(INFER_ARGS)
     response = ""
     for token in chat_model.stream_chat(MESSAGES):

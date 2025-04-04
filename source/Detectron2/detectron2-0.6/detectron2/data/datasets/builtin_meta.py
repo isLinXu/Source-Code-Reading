@@ -17,6 +17,12 @@ COCO model (with correct class names and colors).
 
 # All coco categories, together with their nice-looking visualization colors
 # It's from https://github.com/cocodataset/panopticapi/blob/master/panoptic_coco_categories.json
+# COCO数据集的所有类别定义，包括物体类别(things)和场景类别(stuff)
+# 每个类别包含以下属性:
+# - color: 用于可视化的RGB颜色值
+# - isthing: 1表示物体类别，0表示场景类别
+# - id: 类别的唯一标识符
+# - name: 类别的名称
 COCO_CATEGORIES = [
     {"color": [220, 20, 60], "isthing": 1, "id": 1, "name": "person"},
     {"color": [119, 11, 32], "isthing": 1, "id": 2, "name": "bicycle"},
@@ -154,32 +160,36 @@ COCO_CATEGORIES = [
 ]
 
 # fmt: off
+# COCO数据集人体关键点的名称定义
+# 包含17个关键点，按照从上到下、从左到右的顺序排列
 COCO_PERSON_KEYPOINT_NAMES = (
-    "nose",
-    "left_eye", "right_eye",
-    "left_ear", "right_ear",
-    "left_shoulder", "right_shoulder",
-    "left_elbow", "right_elbow",
-    "left_wrist", "right_wrist",
-    "left_hip", "right_hip",
-    "left_knee", "right_knee",
-    "left_ankle", "right_ankle",
+    "nose",  # 鼻子
+    "left_eye", "right_eye",  # 左眼、右眼
+    "left_ear", "right_ear",  # 左耳、右耳
+    "left_shoulder", "right_shoulder",  # 左肩、右肩
+    "left_elbow", "right_elbow",  # 左肘、右肘
+    "left_wrist", "right_wrist",  # 左手腕、右手腕
+    "left_hip", "right_hip",  # 左髋、右髋
+    "left_knee", "right_knee",  # 左膝、右膝
+    "left_ankle", "right_ankle",  # 左踝、右踝
 )
 # fmt: on
 
 # Pairs of keypoints that should be exchanged under horizontal flipping
+# 水平翻转时需要交换的关键点对，用于数据增强
 COCO_PERSON_KEYPOINT_FLIP_MAP = (
-    ("left_eye", "right_eye"),
-    ("left_ear", "right_ear"),
-    ("left_shoulder", "right_shoulder"),
-    ("left_elbow", "right_elbow"),
-    ("left_wrist", "right_wrist"),
-    ("left_hip", "right_hip"),
-    ("left_knee", "right_knee"),
-    ("left_ankle", "right_ankle"),
+    ("left_eye", "right_eye"),  # 左眼和右眼互换
+    ("left_ear", "right_ear"),  # 左耳和右耳互换
+    ("left_shoulder", "right_shoulder"),  # 左肩和右肩互换
+    ("left_elbow", "right_elbow"),  # 左肘和右肘互换
+    ("left_wrist", "right_wrist"),  # 左手腕和右手腕互换
+    ("left_hip", "right_hip"),  # 左髋和右髋互换
+    ("left_knee", "right_knee"),  # 左膝和右膝互换
+    ("left_ankle", "right_ankle"),  # 左踝和右踝互换
 )
 
 # rules for pairs of keypoints to draw a line between, and the line color to use.
+# 定义关键点之间连线的规则和对应的颜色
 KEYPOINT_CONNECTION_RULES = [
     # face
     ("left_ear", "left_eye", (102, 204, 255)),
@@ -233,12 +243,17 @@ ADE20K_SEM_SEG_CATEGORIES = [
 
 
 def _get_coco_instances_meta():
+    # 获取所有物体类别(isthing=1)的ID列表
     thing_ids = [k["id"] for k in COCO_CATEGORIES if k["isthing"] == 1]
+    # 获取所有物体类别的颜色列表
     thing_colors = [k["color"] for k in COCO_CATEGORIES if k["isthing"] == 1]
+    # 确保物体类别数量为80
     assert len(thing_ids) == 80, len(thing_ids)
-    # Mapping from the incontiguous COCO category id to an id in [0, 79]
+    # 将COCO数据集中不连续的类别ID映射到连续的ID范围[0, 79]
     thing_dataset_id_to_contiguous_id = {k: i for i, k in enumerate(thing_ids)}
+    # 获取所有物体类别的名称列表
     thing_classes = [k["name"] for k in COCO_CATEGORIES if k["isthing"] == 1]
+    # 返回包含类别ID映射、类别名称和颜色的字典
     ret = {
         "thing_dataset_id_to_contiguous_id": thing_dataset_id_to_contiguous_id,
         "thing_classes": thing_classes,
@@ -250,19 +265,28 @@ def _get_coco_instances_meta():
 def _get_coco_panoptic_separated_meta():
     """
     Returns metadata for "separated" version of the panoptic segmentation dataset.
+    返回全景分割数据集的"分离版本"元数据。
     """
+    # 获取所有场景类别(isthing=0)的ID列表
     stuff_ids = [k["id"] for k in COCO_CATEGORIES if k["isthing"] == 0]
+    # 确保场景类别数量为53
     assert len(stuff_ids) == 53, len(stuff_ids)
 
     # For semantic segmentation, this mapping maps from contiguous stuff id
     # (in [0, 53], used in models) to ids in the dataset (used for processing results)
     # The id 0 is mapped to an extra category "thing".
+    # 对于语义分割，此映射将连续的场景类别ID(范围[0,53]，用于模型)
+    # 映射到数据集中的ID(用于处理结果)
+    # ID 0被映射到额外的"thing"类别
     stuff_dataset_id_to_contiguous_id = {k: i + 1 for i, k in enumerate(stuff_ids)}
     # When converting COCO panoptic annotations to semantic annotations
     # We label the "thing" category to 0
+    # 当将COCO全景分割标注转换为语义分割标注时
+    # 我们将"thing"类别标记为0
     stuff_dataset_id_to_contiguous_id[0] = 0
 
     # 54 names for COCO stuff categories (including "things")
+    # COCO场景类别的54个名称(包括"things")
     stuff_classes = ["things"] + [
         k["name"].replace("-other", "").replace("-merged", "")
         for k in COCO_CATEGORIES
@@ -270,12 +294,15 @@ def _get_coco_panoptic_separated_meta():
     ]
 
     # NOTE: I randomly picked a color for things
+    # 注意：为things类别随机选择了一个颜色
     stuff_colors = [[82, 18, 128]] + [k["color"] for k in COCO_CATEGORIES if k["isthing"] == 0]
+    # 返回包含场景类别ID映射、类别名称和颜色的字典
     ret = {
         "stuff_dataset_id_to_contiguous_id": stuff_dataset_id_to_contiguous_id,
         "stuff_classes": stuff_classes,
         "stuff_colors": stuff_colors,
     }
+    # 更新返回字典，添加物体类别的元数据信息
     ret.update(_get_coco_instances_meta())
     return ret
 
@@ -286,6 +313,7 @@ def _get_builtin_metadata(dataset_name):
     if dataset_name == "coco_panoptic_separated":
         return _get_coco_panoptic_separated_meta()
     elif dataset_name == "coco_panoptic_standard":
+        # 创建空字典存储元数据
         meta = {}
         # The following metadata maps contiguous id from [0, #thing categories +
         # #stuff categories) to their names and colors. We have to replica of the
@@ -293,11 +321,18 @@ def _get_builtin_metadata(dataset_name):
         # visualization function in D2 handles thing and class classes differently
         # due to some heuristic used in Panoptic FPN. We keep the same naming to
         # enable reusing existing visualization functions.
+        # 以下元数据将连续ID(从0到物体类别数+场景类别数)映射到它们的名称和颜色
+        # 我们必须在"thing_*"和"stuff_*"下复制相同的名称和颜色
+        # 因为D2中的可视化函数基于Panoptic FPN的启发式方法，对物体和场景类别的处理不同
+        # 我们保持相同的命名以便重用现有的可视化函数
+        
+        # 获取所有类别(物体和场景)的名称和颜色
         thing_classes = [k["name"] for k in COCO_CATEGORIES]
         thing_colors = [k["color"] for k in COCO_CATEGORIES]
         stuff_classes = [k["name"] for k in COCO_CATEGORIES]
         stuff_colors = [k["color"] for k in COCO_CATEGORIES]
 
+        # 将类别名称和颜色信息添加到元数据字典中
         meta["thing_classes"] = thing_classes
         meta["thing_colors"] = thing_colors
         meta["stuff_classes"] = stuff_classes
@@ -311,15 +346,25 @@ def _get_builtin_metadata(dataset_name):
         #           used for evaluation.
         #       - contiguous category id: [0, #classes), in order to train the linear
         #           softmax classifier.
+        # 转换用于训练的类别ID：
+        #   类别ID：类似于语义分割，它是每个像素的类别ID
+        #   由于某些类别在评估时不使用，类别ID并不总是连续的
+        #   因此我们有两组类别ID：
+        #       - 原始类别ID：原始数据集中的类别ID，主要用于评估
+        #       - 连续类别ID：范围[0,类别数)，用于训练线性softmax分类器
+        
+        # 创建物体类别和场景类别的ID映射字典
         thing_dataset_id_to_contiguous_id = {}
         stuff_dataset_id_to_contiguous_id = {}
 
+        # 遍历所有类别，建立ID映射关系
         for i, cat in enumerate(COCO_CATEGORIES):
             if cat["isthing"]:
                 thing_dataset_id_to_contiguous_id[cat["id"]] = i
             else:
                 stuff_dataset_id_to_contiguous_id[cat["id"]] = i
 
+        # 将ID映射信息添加到元数据字典中
         meta["thing_dataset_id_to_contiguous_id"] = thing_dataset_id_to_contiguous_id
         meta["stuff_dataset_id_to_contiguous_id"] = stuff_dataset_id_to_contiguous_id
 
