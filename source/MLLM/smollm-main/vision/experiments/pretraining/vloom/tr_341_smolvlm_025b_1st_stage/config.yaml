@@ -1,0 +1,177 @@
+data_param:
+    laion_coco:
+        dataset_name: LAION_COCO
+        add_begin_of_doc_token: True
+        add_end_of_doc_token: True
+        map_batch_size: 64
+        max_num_images: 5
+        max_seq_len: 7000
+        pad_dataset: True
+        shuffle_initial_urls_list: True
+        shuffle_before_split_by_node_buffer_size: 4000
+        shuffle_before_split_by_worker_buffer_size: 4000
+        shuffle_after_tarfile_to_samples_buffer_size: 5000
+        shuffle_after_packing: True
+        max_image_size: 1536
+        scale_up_max: 2.0
+        scale_up_frequency: 0.0
+        pre_split_scale_up_max: 2.0
+        pre_split_scale_up_frequency: 1.0
+    #cm4:
+    #    dataset_name: CM4
+    #    add_begin_of_doc_token: True
+    #    add_end_of_doc_token: True
+    #    map_batch_size: 256
+    #    max_num_images: 7
+    #    max_seq_len: 2048
+    #    pad_dataset: True
+    #    max_num_samples_per_document: 1
+    #    shuffle_initial_urls_list: True
+    #    shuffle_before_split_by_node_buffer_size: 4000
+    #    shuffle_before_split_by_worker_buffer_size: 4000
+    #    shuffle_after_tarfile_to_samples_buffer_size: 3000
+    #    shuffle_after_packing: True
+    #    max_image_size: 1000
+    #    scale_up_max: 2.0
+    #    scale_up_frequency: 0.0
+    #    pre_split_scale_up_max: 3.0
+    #    pre_split_scale_up_frequency: 0.5
+    ocr:
+        dataset_name: OCR
+        add_begin_of_doc_token: True
+        add_end_of_doc_token: True
+        map_batch_size: 64
+        max_num_images: 3
+        max_seq_len: 7000
+        pad_dataset: True
+        shuffle_initial_urls_list: True
+        shuffle_before_split_by_node_buffer_size: 1500
+        shuffle_before_split_by_worker_buffer_size: 1500
+        shuffle_after_tarfile_to_samples_buffer_size: 2000
+        shuffle_after_packing: True
+        max_image_size: 2048
+        scale_up_max: 2.0
+        scale_up_frequency: 0.0
+        pre_split_scale_up_max: 2.0
+        pre_split_scale_up_frequency: 1.0
+    #sft:
+    #    dataset_name: SFT
+    #    add_begin_of_doc_token: True
+    #    add_end_of_doc_token: True
+    #    map_batch_size: 256
+    #    max_num_images: 1
+    #    max_seq_len: 1024
+    #    pad_dataset: True
+    #    shuffle_initial_urls_list: False
+    #    shuffle_after_packing: True
+    #    shuffle_before_split_by_node_buffer_size: 3000
+    #    shuffle_before_split_by_worker_buffer_size: 3000
+    #    shuffle_after_tarfile_to_samples_buffer_size: 5000
+    #    scale_up_max: 2.0
+    #    scale_up_frequency: 0.5
+    num_workers: 3
+    realtime_processing: True
+    persistent_workers: True
+    pin_memory: True
+    proba_interleaving_dataset: [0.6, 0.4]
+    use_webdataset: True
+hparams:
+    tokenizer_name: HuggingFaceTB/SmolLM2-135M-Instruct
+    tokenizer_params: '{"use_fast": True}'
+    tokenizer_add_tokens: '[AddedToken("<global-img>", rstrip=False, lstrip=False, normalized=False), 
+    AddedToken("<row_1_col_1>", rstrip=False, lstrip=False, normalized=False), AddedToken("<row_1_col_2>", rstrip=False, lstrip=False, normalized=False), 
+    AddedToken("<row_1_col_3>", rstrip=False, lstrip=False, normalized=False), AddedToken("<row_1_col_4>", rstrip=False, lstrip=False, normalized=False),
+    AddedToken("<row_1_col_5>", rstrip=False, lstrip=False, normalized=False), AddedToken("<row_1_col_6>", rstrip=False, lstrip=False, normalized=False),
+    AddedToken("<row_2_col_1>", rstrip=False, lstrip=False, normalized=False), AddedToken("<row_2_col_2>", rstrip=False, lstrip=False, normalized=False),   
+    AddedToken("<row_2_col_3>", rstrip=False, lstrip=False, normalized=False), AddedToken("<row_2_col_4>", rstrip=False, lstrip=False, normalized=False), 
+    AddedToken("<row_2_col_5>", rstrip=False, lstrip=False, normalized=False), AddedToken("<row_2_col_6>", rstrip=False, lstrip=False, normalized=False),
+    AddedToken("<row_3_col_1>", rstrip=False, lstrip=False, normalized=False), AddedToken("<row_3_col_2>", rstrip=False, lstrip=False, normalized=False), 
+    AddedToken("<row_3_col_3>", rstrip=False, lstrip=False, normalized=False), AddedToken("<row_3_col_4>", rstrip=False, lstrip=False, normalized=False),
+    AddedToken("<row_3_col_5>", rstrip=False, lstrip=False, normalized=False), AddedToken("<row_3_col_6>", rstrip=False, lstrip=False, normalized=False),
+    AddedToken("<row_4_col_1>", rstrip=False, lstrip=False, normalized=False), AddedToken("<row_4_col_2>", rstrip=False, lstrip=False, normalized=False),
+    AddedToken("<row_4_col_3>", rstrip=False, lstrip=False, normalized=False), AddedToken("<row_4_col_4>", rstrip=False, lstrip=False, normalized=False),
+    AddedToken("<row_4_col_5>", rstrip=False, lstrip=False, normalized=False), AddedToken("<row_4_col_6>", rstrip=False, lstrip=False, normalized=False),
+    AddedToken("<row_5_col_1>", rstrip=False, lstrip=False, normalized=False), AddedToken("<row_5_col_2>", rstrip=False, lstrip=False, normalized=False),
+    AddedToken("<row_5_col_3>", rstrip=False, lstrip=False, normalized=False), AddedToken("<row_5_col_4>", rstrip=False, lstrip=False, normalized=False),
+    AddedToken("<row_5_col_5>", rstrip=False, lstrip=False, normalized=False), AddedToken("<row_5_col_6>", rstrip=False, lstrip=False, normalized=False),
+    AddedToken("<row_6_col_1>", rstrip=False, lstrip=False, normalized=False), AddedToken("<row_6_col_2>", rstrip=False, lstrip=False, normalized=False),
+    AddedToken("<row_6_col_3>", rstrip=False, lstrip=False, normalized=False), AddedToken("<row_6_col_4>", rstrip=False, lstrip=False, normalized=False),
+    AddedToken("<row_6_col_5>", rstrip=False, lstrip=False, normalized=False), AddedToken("<row_6_col_6>", rstrip=False, lstrip=False, normalized=False),
+    AddedToken("<fake_token_around_image>", rstrip=False, lstrip=False, normalized=False), AddedToken("<image>", rstrip=False, lstrip=False, normalized=False),
+    ]'
+    tokenizer_add_special_tokens: '{}'
+    model_name: HuggingFaceTB/SmolLM2-135M-Instruct
+    model_config:
+        vision_config:
+            vision_model_name: google/siglip-base-patch16-512  # /fsx/hugo/siglip-so400m-14-364-flash-attn2  # HuggingFaceM4/siglip-so400m-14-364-flash-attn2
+        #perceiver_config:
+        #    resampler_n_latents: 64
+        #    resampler_depth: 3
+        #    resampler_n_heads: 16
+        #    resampler_head_dim: 96
+        #    num_key_value_heads: 4
+        #    qk_layer_norms_perceiver: True
+        _flash_attn_2_enabled: True
+        tie_word_embeddings: False
+        freeze_lm_head: True
+        freeze_text_layers: True
+        freeze_vision_layers: True
+        use_resampler: False
+        qk_layer_norms: False
+        use_cache: True
+        neftune_noise_alpha: 0.0
+        image_token_id: 49190
+    lora_config:
+        lora_alpha: 16
+        lora_dropout: 0.1
+        r: 64
+        bias: "none"
+        init_lora_weights: "gaussian"
+        use_dora: True
+    use_lora: True
+    patterns_to_loraify: [
+        ["vision", "encoder", "q_proj"],
+        ["vision", "encoder", "k_proj"],
+        ["vision", "encoder", "v_proj"],
+        ["vision", "encoder", "out_proj"],
+        ["vision", "encoder", "mlp"],
+        ["model.layers", "proj"],
+        ["lm_head"],
+    ]
+    patterns_to_unfreeze: [["modality"], ["vision", "embed"], ["norm"], ["model", "embed_tokens", "additional_embedding"], ["additional_fc"]]
+    global_batch_size: 1024
+    batch_size_per_gpu: 2
+    gradient_checkpointing: True
+    grad_clip: 1.0
+    max_num_opt_steps: 200_000
+    seed: 42
+    train_logging_activations:
+    - jsonl
+    train_logging_activations_opt_steps: 250
+    train_logging_grad_param_deepspeed:
+    - jsonl
+    train_logging_grad_param_deepspeed_opt_steps: 250
+    train_logging_opt_steps: 1
+    train_saving_opt_steps: 250
+    val_logging_opt_steps: 250
+    do_validation: False
+    kill_switch_path: /fsx/m4/experiments/kill-switch-tr_320.txt
+    wandb_enable: true
+    wandb_entity: huggingfacem4
+    wandb_log_freq: 100
+    wandb_project: VLOOM
+    upload_to_s3: False
+    timing_break_down: True
+optim_param:
+    vl_optim: AdamW
+    vl_optim_params:
+        betas: [0.9, 0.999]
+        lr: 0.0001
+        weight_decay: 0.1
+        no_decay: ["bias", "alpha", "layernorm", "ln", "perceiver_resampler", "layer_norm"]
+    vl_lr_scheduler: get_linear_schedule_with_warmup
+    vl_lr_scheduler_params:
+        last_epoch: -1
+        num_warmup_steps: 2_000
+        num_training_steps: 500_000
+    z_loss: 0

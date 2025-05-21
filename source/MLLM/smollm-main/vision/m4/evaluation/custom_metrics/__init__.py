@@ -1,0 +1,7 @@
+from m4.evaluation.custom_metrics.classification_vqa_metrics import ClassificationVQAMetrics
+from m4.evaluation.custom_metrics.doc_vqa_metrics import DocVQAMetrics
+from m4.evaluation.custom_metrics.image_caption_matching_metrics import ImageCaptionMatchingMetrics
+from m4.evaluation.custom_metrics.open_ended_vqa_metrics import OpenEndedVQAMetrics
+from m4.evaluation.custom_metrics.perplexity_metrics import PerplexityMetrics
+from m4.evaluation.custom_metrics.unfolded_classification_metrics import UnfoldedClassificationMetrics
+from m4.evaluation.custom_metrics.unfolded_image_captioning_metrics import UnfoldedImageCaptioningMetrics

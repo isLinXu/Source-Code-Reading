@@ -1,0 +1,4 @@
+sbatch experiments/evaluation/vloom/async_evals_tr_348/run_evals_4_shots_captioning_1024.slurm
+sbatch experiments/evaluation/vloom/async_evals_tr_348/run_evals_4_shots_captioning_1920.slurm
+sbatch experiments/evaluation/vloom/async_evals_tr_348/run_evals_4_shots_vqa_1024.slurm
+sbatch experiments/evaluation/vloom/async_evals_tr_348/run_evals_4_shots_vqa_1920.slurm

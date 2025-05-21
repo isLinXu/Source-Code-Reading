@@ -1,0 +1,27 @@
+cond_check_image_in_simplified_dom_tree: True
+cond_check_format: True
+valid_formats: !!set {jpg, jpeg, png, webp}
+cond_check_size_image: True
+original_width_min_cutoff: 100
+# PIL decompression bomb warning is at 178M pixels, and 10000^2=100M is close
+original_width_max_cutoff: 10000
+original_height_min_cutoff: 100
+original_height_max_cutoff: 10000
+rendered_width_min_cutoff: 100
+rendered_width_max_cutoff: 100000
+rendered_height_min_cutoff: 100
+rendered_height_max_cutoff: 100000
+aspect_ratio_max_cutoff: 3
+cond_remove_non_printing_characters: False  # Warning if set to True, it contains " " and "\n"
+cond_standardize_whitespace: True
+cond_check_number_words: True
+number_words_min_cutoff: 3
+number_words_max_cutoff: 256
+cond_check_special_character_ratio: True
+special_character_ratio_max_cutoff: 0.4
+cond_check_stopword_ratio: False
+stopword_ratio_min_cutoff: 0
+cond_check_repetition_ratio: True
+repetition_ratio_max_cutoff: 0.3
+cond_check_clip_score: True
+clip_score_min_cutoff: 0.2

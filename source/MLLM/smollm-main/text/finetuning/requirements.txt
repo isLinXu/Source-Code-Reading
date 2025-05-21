@@ -1,0 +1,7 @@
+transformers
+trl>=0.15
+peft
+accelerate
+datasets
+wandb
+bitsandbytes

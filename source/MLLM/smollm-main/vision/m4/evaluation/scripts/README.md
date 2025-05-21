@@ -1,0 +1,1 @@
+We need to locally save some datasets with `copy_remote_sample_datasets.py` because the caching function does not work for some datasets, see https://github.com/huggingface/datasets/issues/4760 and https://github.com/huggingface/datasets/issues/3547.

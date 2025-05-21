@@ -1,0 +1,94 @@
+data_param:
+    pmd:
+        dataset_name: PMD
+        add_begin_of_doc_token: True
+        add_end_of_doc_token: True
+        map_batch_size: 512
+        max_num_images: 35
+        max_seq_len: 512
+        pad_dataset: True
+        prob_image_at_end: 0.1
+        max_num_samples_per_document: 1
+        shuffle_before_split_by_node_buffer_size: 10000
+        shuffle_before_split_by_worker_buffer_size: 10000
+        shuffle_after_tarfile_to_samples_buffer_size: 10000
+        shuffle_after_batching_buffer_size: 2
+    cm4:
+        dataset_name: CM4
+        add_begin_of_doc_token: True
+        add_end_of_doc_token: True
+        map_batch_size: 512
+        max_num_images: 35
+        max_seq_len: 512
+        pad_dataset: True
+        punc_threshold: 0.03
+        p_next: 0.5
+        max_num_samples_per_document: 1
+        shuffle_before_split_by_node_buffer_size: 10000
+        shuffle_before_split_by_worker_buffer_size: 10000
+        shuffle_after_tarfile_to_samples_buffer_size: 10000
+        shuffle_after_batching_buffer_size: 2
+    num_workers: 4
+    realtime_processing: True
+    persistent_workers: False
+    proba_interleaving_dataset: [0.5,0.5]
+    use_webdataset: True
+hparams:
+    tokenizer_name: HuggingFaceM4/llama-7b-tokenizer
+    tokenizer_params: '{"use_fast": False}'
+    tokenizer_add_tokens: '[AddedToken("<fake_token_around_image>", rstrip=False, lstrip=False), AddedToken("<image>", rstrip=False, lstrip=False)]'
+    tokenizer_add_special_tokens: '{}'
+    model_name: huggingface/llama-7b
+    model_params:
+        vision_embed_dim: 1280
+        vision_image_size: 224
+        vision_model_name: laion/CLIP-ViT-H-14-laion2B-s32B-b79K
+        vision_model_params: '{"id2label":{}, "label2id":{}}'
+        tie_word_embeddings: False
+        freeze_lm_head: True
+        freeze_text_layers: True
+        freeze_vision_layers: True
+        use_resampler: False
+        qk_layer_norms_perceiver: False
+        resampler_n_latents: 64
+        resampler_depth: 6
+        resampler_n_heads: 16
+        resampler_head_dim: 96
+        alpha_initializer: zeros
+        alpha_type: float
+        cross_layer_interval: 2
+        qk_layer_norms: True
+        use_cache: True
+    global_batch_size: 2048
+    batch_size_per_gpu: 16
+    gradient_checkpointing: True
+    grad_clip: 1.0
+    max_num_opt_steps: 500_000
+    seed: 13
+    train_logging_activations:
+    - jsonl
+    train_logging_activations_opt_steps: 100
+    train_logging_grad_param_deepspeed:
+    - jsonl
+    train_logging_grad_param_deepspeed_opt_steps: 100
+    train_logging_opt_steps: 5
+    train_saving_opt_steps: 250
+    val_logging_opt_steps: 500
+    kill_switch_path: /fsx/m4/experiments/kill-switch-changeme.txt
+    wandb_enable: true
+    wandb_entity: huggingfacem4
+    wandb_log_freq: 100
+    wandb_project: VLOOM
+optim_param:
+    vl_optim: AdamW
+    vl_optim_params:
+        betas: [0.9, 0.999]
+        lr: 0.0001
+        weight_decay: 0.1
+        no_decay: ["bias", "alpha", "layernorm", "ln", "perceiver_resampler", "layer_norm"]
+    vl_lr_scheduler: get_linear_schedule_with_warmup
+    vl_lr_scheduler_params:
+        last_epoch: -1
+        num_warmup_steps: 2_000
+        num_training_steps: 500_000
+    z_loss: 1e-3

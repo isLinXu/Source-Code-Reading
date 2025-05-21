@@ -1,0 +1,205 @@
+data_param:
+    # laion_coco:
+    #     dataset_name: LAION_COCO
+    #     add_begin_of_doc_token: True
+    #     add_end_of_doc_token: True
+    #     map_batch_size: 64
+    #     max_num_images: 5
+    #     max_seq_len: 7000
+    #     pad_dataset: True
+    #     shuffle_initial_urls_list: True
+    #     shuffle_before_split_by_node_buffer_size: 4000
+    #     shuffle_before_split_by_worker_buffer_size: 4000
+    #     shuffle_after_tarfile_to_samples_buffer_size: 5000
+    #     shuffle_after_packing: True
+    #     max_image_size: 1536
+    #     scale_up_max: 2.0
+    #     scale_up_frequency: 0.0
+    #     pre_split_scale_up_max: 2.0
+    #     pre_split_scale_up_frequency: 1.0
+    #cm4:
+    #    dataset_name: CM4
+    #    add_begin_of_doc_token: True
+    #    add_end_of_doc_token: True
+    #    map_batch_size: 256
+    #    max_num_images: 7
+    #    max_seq_len: 2048
+    #    pad_dataset: True
+    #    max_num_samples_per_document: 1
+    #    shuffle_initial_urls_list: True
+    #    shuffle_before_split_by_node_buffer_size: 4000
+    #    shuffle_before_split_by_worker_buffer_size: 4000
+    #    shuffle_after_tarfile_to_samples_buffer_size: 3000
+    #    shuffle_after_packing: True
+    #    max_image_size: 1000
+    #    scale_up_max: 2.0
+    #    scale_up_frequency: 0.0
+    #    pre_split_scale_up_max: 3.0
+    #    pre_split_scale_up_frequency: 0.5
+    # ocr:
+    #     dataset_name: OCR
+    #     add_begin_of_doc_token: True
+    #     add_end_of_doc_token: True
+    #     map_batch_size: 64
+    #     max_num_images: 2
+    #     max_seq_len: 7000
+    #     pad_dataset: True
+    #     shuffle_initial_urls_list: True
+    #     shuffle_before_split_by_node_buffer_size: 1500
+    #     shuffle_before_split_by_worker_buffer_size: 1500
+    #     shuffle_after_tarfile_to_samples_buffer_size: 2000
+    #     shuffle_after_packing: True
+    #     max_image_size: 2048
+    #     scale_up_max: 2.0
+    #     scale_up_frequency: 0.0
+    #     pre_split_scale_up_max: 2.0
+    #     pre_split_scale_up_frequency: 1.0
+    sft:
+        dataset_name: SFT
+        add_begin_of_doc_token: True
+        add_end_of_doc_token: True
+        map_batch_size: 64
+        max_num_images: 2
+        max_seq_len: 7000
+        pad_dataset: True
+        shuffle_initial_urls_list: True
+        shuffle_after_packing: True
+        shuffle_before_split_by_node_buffer_size: 3000
+        shuffle_before_split_by_worker_buffer_size: 3000
+        shuffle_after_tarfile_to_samples_buffer_size: 5000
+        max_image_size: 2048
+        scale_up_max: 2.0
+        scale_up_frequency: 0.0
+        pre_split_scale_up_max: 2.0
+        pre_split_scale_up_frequency: 1.0
+    num_workers: 3
+    realtime_processing: True
+    persistent_workers: True
+    pin_memory: True
+    proba_interleaving_dataset: [1.0]
+    use_webdataset: True
+hparams:
+    tokenizer_name: /fsx/m4/experiments/local_experiment_dir/tr_345_vsmollm2_256M_2nd_stage/opt_step-3000/tokenizer/
+    tokenizer_params: '{"use_fast": True}'
+    tokenizer_add_tokens: '[AddedToken("<|reserved_special_token_0|>", rstrip=False, lstrip=False, normalized=False), AddedToken("<|reserved_special_token_1|>", rstrip=False, lstrip=False, normalized=False),
+    AddedToken("<|reserved_special_token_2|>", rstrip=False, lstrip=False, normalized=False), AddedToken("<|reserved_special_token_3|>", rstrip=False, lstrip=False, normalized=False),
+    AddedToken("<|reserved_special_token_4|>", rstrip=False, lstrip=False, normalized=False), AddedToken("<|reserved_special_token_5|>", rstrip=False, lstrip=False, normalized=False),
+    AddedToken("<|reserved_special_token_6|>", rstrip=False, lstrip=False, normalized=False), AddedToken("<|reserved_special_token_7|>", rstrip=False, lstrip=False, normalized=False),
+    AddedToken("<|reserved_special_token_8|>", rstrip=False, lstrip=False, normalized=False), AddedToken("<|reserved_special_token_9|>", rstrip=False, lstrip=False, normalized=False),
+    AddedToken("<|reserved_special_token_10|>", rstrip=False, lstrip=False, normalized=False), AddedToken("<|reserved_special_token_11|>", rstrip=False, lstrip=False, normalized=False),
+    AddedToken("<|reserved_special_token_12|>", rstrip=False, lstrip=False, normalized=False), AddedToken("<|reserved_special_token_13|>", rstrip=False, lstrip=False, normalized=False),
+    AddedToken("<|reserved_special_token_14|>", rstrip=False, lstrip=False, normalized=False), AddedToken("<|reserved_special_token_15|>", rstrip=False, lstrip=False, normalized=False),
+    AddedToken("<|reserved_special_token_16|>", rstrip=False, lstrip=False, normalized=False), AddedToken("<|reserved_special_token_17|>", rstrip=False, lstrip=False, normalized=False),
+    AddedToken("<|reserved_special_token_18|>", rstrip=False, lstrip=False, normalized=False), AddedToken("<|reserved_special_token_19|>", rstrip=False, lstrip=False, normalized=False),
+    AddedToken("<|reserved_special_token_20|>", rstrip=False, lstrip=False, normalized=False), AddedToken("<|reserved_special_token_21|>", rstrip=False, lstrip=False, normalized=False),
+    AddedToken("<|reserved_special_token_22|>", rstrip=False, lstrip=False, normalized=False), AddedToken("<|reserved_special_token_23|>", rstrip=False, lstrip=False, normalized=False),
+    AddedToken("<|reserved_special_token_24|>", rstrip=False, lstrip=False, normalized=False), AddedToken("<|reserved_special_token_25|>", rstrip=False, lstrip=False, normalized=False),
+    AddedToken("<|reserved_special_token_26|>", rstrip=False, lstrip=False, normalized=False), AddedToken("<|reserved_special_token_27|>", rstrip=False, lstrip=False, normalized=False),
+    AddedToken("<|reserved_special_token_28|>", rstrip=False, lstrip=False, normalized=False), AddedToken("<|reserved_special_token_29|>", rstrip=False, lstrip=False, normalized=False),
+    AddedToken("<|reserved_special_token_30|>", rstrip=False, lstrip=False, normalized=False), AddedToken("<|reserved_special_token_31|>", rstrip=False, lstrip=False, normalized=False),
+    AddedToken("<|reserved_special_token_32|>", rstrip=False, lstrip=False, normalized=False), AddedToken("<|reserved_special_token_33|>", rstrip=False, lstrip=False, normalized=False),
+    AddedToken("<|reserved_special_token_34|>", rstrip=False, lstrip=False, normalized=False), AddedToken("<|reserved_special_token_35|>", rstrip=False, lstrip=False, normalized=False),
+    AddedToken("<|reserved_special_token_36|>", rstrip=False, lstrip=False, normalized=False), AddedToken("<|reserved_special_token_37|>", rstrip=False, lstrip=False, normalized=False),
+    AddedToken("<|reserved_special_token_38|>", rstrip=False, lstrip=False, normalized=False), AddedToken("<|reserved_special_token_39|>", rstrip=False, lstrip=False, normalized=False),
+    AddedToken("<|reserved_special_token_40|>", rstrip=False, lstrip=False, normalized=False), AddedToken("<|reserved_special_token_41|>", rstrip=False, lstrip=False, normalized=False),
+    AddedToken("<|reserved_special_token_42|>", rstrip=False, lstrip=False, normalized=False), AddedToken("<|reserved_special_token_43|>", rstrip=False, lstrip=False, normalized=False),
+    AddedToken("<|reserved_special_token_44|>", rstrip=False, lstrip=False, normalized=False), AddedToken("<|reserved_special_token_45|>", rstrip=False, lstrip=False, normalized=False),
+    AddedToken("<|reserved_special_token_46|>", rstrip=False, lstrip=False, normalized=False), AddedToken("<|reserved_special_token_47|>", rstrip=False, lstrip=False, normalized=False),
+    AddedToken("<|reserved_special_token_48|>", rstrip=False, lstrip=False, normalized=False), AddedToken("<|reserved_special_token_49|>", rstrip=False, lstrip=False, normalized=False),
+    AddedToken("<|reserved_special_token_50|>", rstrip=False, lstrip=False, normalized=False), AddedToken("<|reserved_special_token_51|>", rstrip=False, lstrip=False, normalized=False),
+    AddedToken("<|reserved_special_token_52|>", rstrip=False, lstrip=False, normalized=False), AddedToken("<|reserved_special_token_53|>", rstrip=False, lstrip=False, normalized=False),
+    AddedToken("<|reserved_special_token_54|>", rstrip=False, lstrip=False, normalized=False), AddedToken("<|reserved_special_token_55|>", rstrip=False, lstrip=False, normalized=False),
+    AddedToken("<|reserved_special_token_56|>", rstrip=False, lstrip=False, normalized=False), AddedToken("<|reserved_special_token_57|>", rstrip=False, lstrip=False, normalized=False),
+    AddedToken("<|reserved_special_token_58|>", rstrip=False, lstrip=False, normalized=False), AddedToken("<|reserved_special_token_59|>", rstrip=False, lstrip=False, normalized=False),
+    AddedToken("<|reserved_special_token_60|>", rstrip=False, lstrip=False, normalized=False), AddedToken("<|reserved_special_token_61|>", rstrip=False, lstrip=False, normalized=False),
+    AddedToken("<|reserved_special_token_62|>", rstrip=False, lstrip=False, normalized=False), AddedToken("<|reserved_special_token_63|>", rstrip=False, lstrip=False, normalized=False),
+    AddedToken("<|reserved_special_token_64|>", rstrip=False, lstrip=False, normalized=False), AddedToken("<|reserved_special_token_65|>", rstrip=False, lstrip=False, normalized=False),
+    AddedToken("<|reserved_special_token_66|>", rstrip=False, lstrip=False, normalized=False), AddedToken("<|reserved_special_token_67|>", rstrip=False, lstrip=False, normalized=False),
+    AddedToken("<|reserved_special_token_68|>", rstrip=False, lstrip=False, normalized=False), AddedToken("<|reserved_special_token_69|>", rstrip=False, lstrip=False, normalized=False),
+    AddedToken("<|reserved_special_token_70|>", rstrip=False, lstrip=False, normalized=False), AddedToken("<|reserved_special_token_71|>", rstrip=False, lstrip=False, normalized=False),
+    AddedToken("<|reserved_special_token_72|>", rstrip=False, lstrip=False, normalized=False), AddedToken("<|reserved_special_token_73|>", rstrip=False, lstrip=False, normalized=False),
+    AddedToken("<|reserved_special_token_74|>", rstrip=False, lstrip=False, normalized=False), AddedToken("<|reserved_special_token_75|>", rstrip=False, lstrip=False, normalized=False),
+    AddedToken("<|reserved_special_token_76|>", rstrip=False, lstrip=False, normalized=False), AddedToken("<|reserved_special_token_77|>", rstrip=False, lstrip=False, normalized=False),
+    AddedToken("<|reserved_special_token_78|>", rstrip=False, lstrip=False, normalized=False), AddedToken("<|reserved_special_token_79|>", rstrip=False, lstrip=False, normalized=False),
+    AddedToken("<|reserved_special_token_80|>", rstrip=False, lstrip=False, normalized=False), AddedToken("<|reserved_special_token_81|>", rstrip=False, lstrip=False, normalized=False),
+    AddedToken("<|reserved_special_token_82|>", rstrip=False, lstrip=False, normalized=False), AddedToken("<|reserved_special_token_83|>", rstrip=False, lstrip=False, normalized=False),
+    AddedToken("<|reserved_special_token_84|>", rstrip=False, lstrip=False, normalized=False), AddedToken("<|reserved_special_token_85|>", rstrip=False, lstrip=False, normalized=False),
+    AddedToken("<|reserved_special_token_86|>", rstrip=False, lstrip=False, normalized=False), AddedToken("<|reserved_special_token_87|>", rstrip=False, lstrip=False, normalized=False),
+    AddedToken("<end_of_utterance>", rstrip=False, lstrip=False, normalized=False)]'
+    tokenizer_add_special_tokens: '{}'
+    model_name: /fsx/m4/experiments/local_experiment_dir/tr_345_vsmollm2_256M_2nd_stage/opt_step-3000/unwrapped_model/
+    is_fine_tuning: True
+    model_config:
+        vision_config:
+            vision_model_name: google/siglip-base-patch16-512  # /fsx/hugo/siglip-so400m-14-364-flash-attn2  # HuggingFaceM4/siglip-so400m-14-364-flash-attn2
+        #perceiver_config:
+        #    resampler_n_latents: 64
+        #    resampler_depth: 3
+        #    resampler_n_heads: 16
+        #    resampler_head_dim: 96
+        #    num_key_value_heads: 4
+        #    qk_layer_norms_perceiver: True
+        _flash_attn_2_enabled: True
+        tie_word_embeddings: False
+        freeze_lm_head: False
+        freeze_text_layers: False
+        freeze_vision_layers: False
+        use_resampler: False
+        qk_layer_norms: False
+        use_cache: True
+        neftune_noise_alpha: 5.0
+        image_token_id: 49190
+    lora_config:
+        lora_alpha: 16
+        lora_dropout: 0.1
+        r: 64
+        bias: "none"
+        init_lora_weights: "gaussian"
+        use_dora: True
+    use_lora: False
+    # patterns_to_loraify: [
+    #     ["vision", "encoder", "q_proj"],
+    #     ["vision", "encoder", "k_proj"],
+    #     ["vision", "encoder", "v_proj"],
+    #     ["vision", "encoder", "out_proj"],
+    #     ["vision", "encoder", "mlp"],
+    #     ["model.layers", "proj"],
+    #     ["lm_head"],
+    # ]
+    # patterns_to_unfreeze: [["modality"], ["vision", "embed"], ["norm"], ["model", "embed_tokens", "additional_embedding"], ["additional_fc"]]
+    global_batch_size: 8192
+    batch_size_per_gpu: 4
+    gradient_checkpointing: True
+    grad_clip: 1.0
+    max_num_opt_steps: 4_000
+    seed: 42
+    train_logging_activations:
+    - jsonl
+    train_logging_activations_opt_steps: 250
+    train_logging_grad_param_deepspeed:
+    - jsonl
+    train_logging_grad_param_deepspeed_opt_steps: 250
+    train_logging_opt_steps: 1
+    train_saving_opt_steps: 25
+    val_logging_opt_steps: 250
+    do_validation: False
+    kill_switch_path: /fsx/m4/experiments/kill-switch-tr_346.txt
+    wandb_enable: true
+    wandb_entity: huggingfacem4
+    wandb_log_freq: 100
+    wandb_project: VLOOM
+    upload_to_s3: False
+    timing_break_down: True
+optim_param:
+    vl_optim: AdamW
+    vl_optim_params:
+        betas: [0.9, 0.999]
+        lr: 0.0001
+        weight_decay: 0.1
+        no_decay: ["bias", "alpha", "layernorm", "ln", "perceiver_resampler", "layer_norm"]
+    vl_lr_scheduler: get_linear_schedule_with_warmup
+    vl_lr_scheduler_params:
+        last_epoch: -1
+        num_warmup_steps: 100
+        num_training_steps: 2_000
+    z_loss: 0

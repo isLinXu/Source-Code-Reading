@@ -1,0 +1,47 @@
+data_param:
+    map_batch_size: 32
+    num_workers: 2
+    p_next: 0.
+    max_seq_len: 77
+    pad_dataset: True
+    realtime_processing: True
+    persistent_workers: False
+hparams:
+    tokenizer_name: gpt2
+    tokenizer_params: '{"additional_special_tokens":[AddedToken("<image>", rstrip=False, lstrip=False)], "use_fast":True}'
+    tokenizer_add_special_tokens: '{"pad_token": tokenizer.eos_token}'
+    model_name: gpt2-xl
+    model_params:
+        vision_image_size: 224
+        vision_model_name: openai/clip-vit-base-patch16
+        vision_model_params: '{"id2label":{}, "label2id":{}}'
+        tie_word_embeddings: True
+        freeze_lm_head: True
+        freeze_text_layers: True
+        freeze_vision_layers: True
+        alpha_initializer: zeros
+        alpha_type: float
+        cross_layer_interval: 1
+    batch_size: 8
+    grad_acc_size: 1
+    grad_clip: 1.0
+    max_num_opt_steps: 500_000
+    seed: 13
+    train_logging_opt_steps: 10
+    train_saving_opt_steps: 250
+    val_logging_opt_steps: 250
+    wandb_enable: true
+    wandb_entity: huggingfacem4
+    wandb_log_freq: 10
+    wandb_project: VLOOM
+optim_param:
+    vl_optim: AdamW
+    vl_optim_params:
+        betas: [0.9, 0.999]
+        lr: 0.0001
+        weight_decay: 0.1
+        no_decay: ["bias", "alpha", "layernorm", "ln"]
+    vl_lr_scheduler: get_constant_schedule_with_warmup
+    vl_lr_scheduler_params:
+        last_epoch: -1
+        num_warmup_steps: 5_000
